@@ -11,9 +11,12 @@ import {
   formatAgo,
   formatPct,
   formatResetLabel,
+  formatRunsOutLabel,
   statusLabel,
   windowUsedPct,
 } from "./usage-format.shared";
+import { isRtl, messagesFor, type Locale, type Messages } from "./i18n.shared";
+import { resolveLocale } from "./locale.client";
 import {
   listUsage,
   type ProviderUsage,
@@ -44,22 +47,31 @@ function fillColor(theme: PluginTheme, tone: UsageTone | undefined): string {
   }
 }
 
-function useStyles(theme: PluginTheme, compact: boolean) {
+function useStyles(theme: PluginTheme, compact: boolean, rtl: boolean) {
+  const row = rtl ? "row-reverse" : "row";
+  const textAlign = rtl ? "right" : "left";
+  const writingDirection = rtl ? "rtl" : "ltr";
   return useMemo(
     () =>
       StyleSheet.create({
         screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-        content: { padding: compact ? SPACE[4] : SPACE[6] },
+        content: {
+          paddingHorizontal: compact ? SPACE[4] : SPACE[6],
+          paddingTop: compact ? SPACE[4] : SPACE[6],
+          paddingBottom: SPACE[6],
+        },
+        /** Settings centers its column instead of stretching to the window width. */
+        column: { width: "100%", maxWidth: 720, alignSelf: "center" },
         sectionHeader: {
-          flexDirection: "row",
+          flexDirection: row,
           alignItems: "center",
           justifyContent: "space-between",
           marginBottom: SPACE[3],
           marginLeft: SPACE[1],
         },
-        sectionHeaderTitle: { color: theme.colors.foregroundMuted, fontSize: FONT.sm },
+        sectionHeaderTitle: { color: theme.colors.foregroundMuted, fontSize: FONT.sm, writingDirection, textAlign },
         refreshButton: {
-          flexDirection: "row",
+          flexDirection: row,
           alignItems: "center",
           gap: SPACE[1.5],
           paddingHorizontal: SPACE[2],
@@ -67,7 +79,7 @@ function useStyles(theme: PluginTheme, compact: boolean) {
           borderRadius: 6,
         },
         refreshButtonPressed: { backgroundColor: theme.colors.surface2 },
-        refreshLabel: { color: theme.colors.foregroundMuted, fontSize: FONT.sm },
+        refreshLabel: { color: theme.colors.foregroundMuted, fontSize: FONT.sm, writingDirection },
 
         card: {
           backgroundColor: theme.colors.surface1,
@@ -79,8 +91,8 @@ function useStyles(theme: PluginTheme, compact: boolean) {
         divider: { height: 1, backgroundColor: theme.colors.border },
 
         provider: { gap: SPACE[4], paddingVertical: SPACE[4], paddingHorizontal: SPACE[4] },
-        providerHeader: { flexDirection: "row", alignItems: "center", gap: SPACE[2] },
-        providerName: { flexShrink: 1, color: theme.colors.foreground, fontSize: FONT.base },
+        providerHeader: { flexDirection: row, alignItems: "center", gap: SPACE[2] },
+        providerName: { flexShrink: 1, color: theme.colors.foreground, fontSize: FONT.base, writingDirection, textAlign },
         headerSpacer: { flex: 1 },
         planBadge: {
           paddingHorizontal: SPACE[2],
@@ -88,8 +100,8 @@ function useStyles(theme: PluginTheme, compact: boolean) {
           borderRadius: 9999,
           backgroundColor: theme.colors.surface2,
         },
-        planBadgeLabel: { color: theme.colors.foregroundMuted, fontSize: FONT.sm },
-        statusRow: { flexDirection: "row", alignItems: "center", gap: SPACE[1.5] },
+        planBadgeLabel: { color: theme.colors.foregroundMuted, fontSize: FONT.sm, writingDirection },
+        statusRow: { flexDirection: row, alignItems: "center", gap: SPACE[1.5] },
         statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.foregroundMuted },
         statusDotError: { backgroundColor: theme.colors.statusDanger },
         statusLabel: { color: theme.colors.foregroundMuted, fontSize: FONT.sm },
@@ -97,25 +109,25 @@ function useStyles(theme: PluginTheme, compact: boolean) {
         bars: { gap: SPACE[3] },
         bar: { gap: 3 },
         barLabelRow: {
-          flexDirection: "row",
+          flexDirection: row,
           justifyContent: "space-between",
           alignItems: "center",
           gap: SPACE[2],
         },
-        barLabel: { flexShrink: 1, color: theme.colors.foregroundMuted, fontSize: FONT.sm },
-        barValue: { color: theme.colors.foreground, fontSize: FONT.sm, fontWeight: "500" },
+        barLabel: { flexShrink: 1, color: theme.colors.foregroundMuted, fontSize: FONT.sm, writingDirection, textAlign },
+        barValue: { color: theme.colors.foreground, fontSize: FONT.sm, fontWeight: "500", writingDirection },
         barReset: { color: theme.colors.foregroundMuted, fontWeight: "normal" },
         barAtRisk: { color: theme.colors.statusDanger, fontWeight: "normal" },
-        track: { height: 4, borderRadius: 2, backgroundColor: theme.colors.surface2, overflow: "hidden" },
+        track: { height: 4, borderRadius: 2, backgroundColor: theme.colors.surface2, overflow: "hidden", flexDirection: row },
         fill: { height: 4, borderRadius: 2 },
 
         details: { gap: SPACE[1] },
-        detailRow: { flexDirection: "row", justifyContent: "space-between", gap: SPACE[2] },
-        detailLabel: { flexShrink: 1, color: theme.colors.foregroundMuted, fontSize: FONT.sm },
-        detailValue: { color: theme.colors.foreground, fontSize: FONT.sm },
+        detailRow: { flexDirection: row, justifyContent: "space-between", gap: SPACE[2] },
+        detailLabel: { flexShrink: 1, color: theme.colors.foregroundMuted, fontSize: FONT.sm, writingDirection, textAlign },
+        detailValue: { color: theme.colors.foreground, fontSize: FONT.sm, writingDirection },
 
         providerError: { color: theme.colors.statusDanger, fontSize: FONT.sm, lineHeight: FONT.sm * 1.4 },
-        providerFooter: { color: theme.colors.foregroundMuted, fontSize: FONT.sm },
+        providerFooter: { color: theme.colors.foregroundMuted, fontSize: FONT.sm, writingDirection, textAlign },
 
         stateCard: { padding: SPACE[4], alignItems: "center", gap: SPACE[3] },
         stateText: { color: theme.colors.foregroundMuted, fontSize: FONT.base, textAlign: "center" },
@@ -129,19 +141,31 @@ function useStyles(theme: PluginTheme, compact: boolean) {
         },
         retryLabel: { color: theme.colors.foreground, fontSize: FONT.sm },
       }),
-    [theme, compact],
+    [theme, compact, row, textAlign, writingDirection],
   );
 }
 
 type Styles = ReturnType<typeof useStyles>;
 
-function WindowBar({ window, theme, styles }: { window: UsageWindow; theme: PluginTheme; styles: Styles }) {
+function WindowBar({
+  window,
+  theme,
+  styles,
+  locale,
+  messages,
+}: {
+  window: UsageWindow;
+  theme: PluginTheme;
+  styles: Styles;
+  locale: Locale;
+  messages: Messages;
+}) {
   const usedPct = windowUsedPct(window);
   const tone = window.tone ?? deriveTone(usedPct);
   const atRisk = window.runsOutAt != null && window.shortfallPct != null;
   const trailing = atRisk
-    ? `runs out ${formatResetLabel(window.runsOutAt)?.replace("resets ", "") ?? ""}`.trim()
-    : formatResetLabel(window.resetsAt);
+    ? formatRunsOutLabel(window.runsOutAt, messages)
+    : formatResetLabel(window.resetsAt, messages);
 
   return (
     <View style={styles.bar}>
@@ -150,7 +174,7 @@ function WindowBar({ window, theme, styles }: { window: UsageWindow; theme: Plug
           {window.label}
         </Text>
         <Text style={styles.barValue}>
-          {usedPct != null ? formatPct(usedPct) : "—"}
+          {usedPct != null ? formatPct(usedPct, locale) : "—"}
           {trailing ? <Text style={atRisk ? styles.barAtRisk : styles.barReset}>{` · ${trailing}`}</Text> : null}
         </Text>
       </View>
@@ -163,9 +187,21 @@ function WindowBar({ window, theme, styles }: { window: UsageWindow; theme: Plug
   );
 }
 
-function BalanceBar({ balance, theme, styles }: { balance: UsageBalance; theme: PluginTheme; styles: Styles }) {
-  const { amountText, usedPct } = balanceReading(balance);
-  const reset = formatResetLabel(balance.resetsAt);
+function BalanceBar({
+  balance,
+  theme,
+  styles,
+  locale,
+  messages,
+}: {
+  balance: UsageBalance;
+  theme: PluginTheme;
+  styles: Styles;
+  locale: Locale;
+  messages: Messages;
+}) {
+  const { amountText, usedPct } = balanceReading(balance, locale, messages);
+  const reset = formatResetLabel(balance.resetsAt, messages);
 
   return (
     <View style={styles.bar}>
@@ -196,16 +232,20 @@ function ProviderBlock({
   provider,
   theme,
   styles,
+  locale,
+  messages,
 }: {
   provider: ProviderUsage;
   theme: PluginTheme;
   styles: Styles;
+  locale: Locale;
+  messages: Messages;
 }) {
-  const status = statusLabel(provider.status);
+  const status = statusLabel(provider.status, messages);
   const footer = useMemo(() => {
-    const ago = formatAgo(provider.fetchedAt);
-    return [provider.sourceLabel, ago ? `Updated ${ago}` : null].filter(Boolean).join(" · ");
-  }, [provider.sourceLabel, provider.fetchedAt]);
+    const ago = formatAgo(provider.fetchedAt, messages);
+    return [provider.sourceLabel, ago ? messages.updated(ago) : null].filter(Boolean).join(" · ");
+  }, [provider.sourceLabel, provider.fetchedAt, messages]);
 
   const hasBars = provider.windows.length > 0 || provider.balances.length > 0;
 
@@ -245,10 +285,24 @@ function ProviderBlock({
       {hasBars ? (
         <View style={styles.bars}>
           {provider.windows.map((window) => (
-            <WindowBar key={window.id} window={window} theme={theme} styles={styles} />
+            <WindowBar
+              key={window.id}
+              window={window}
+              theme={theme}
+              styles={styles}
+              locale={locale}
+              messages={messages}
+            />
           ))}
           {provider.balances.map((balance) => (
-            <BalanceBar key={balance.id} balance={balance} theme={theme} styles={styles} />
+            <BalanceBar
+              key={balance.id}
+              balance={balance}
+              theme={theme}
+              styles={styles}
+              locale={locale}
+              messages={messages}
+            />
           ))}
         </View>
       ) : null}
@@ -278,7 +332,9 @@ function ProviderBlock({
 }
 
 export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
-  const styles = useStyles(theme, layout.compact);
+  const locale = useMemo(() => resolveLocale(layout.platform), [layout.platform]);
+  const messages = useMemo(() => messagesFor(locale), [locale]);
+  const styles = useStyles(theme, layout.compact, isRtl(locale));
   const fetchUsage = useRpc(listUsage);
 
   const query = useQuery<UsageSnapshot>({
@@ -294,11 +350,12 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.column}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionHeaderTitle}>Plan usage</Text>
+          <Text style={styles.sectionHeaderTitle}>{messages.title}</Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Refresh"
+            accessibilityLabel={messages.refresh}
             onPress={() => void query.refetch()}
             style={({ pressed }) => [styles.refreshButton, pressed ? styles.refreshButtonPressed : null]}
           >
@@ -307,31 +364,31 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
             ) : (
               <Icon name="RefreshCw" size={14} color={theme.colors.foregroundMuted} />
             )}
-            <Text style={styles.refreshLabel}>{refreshing ? "Refreshing..." : "Refresh"}</Text>
+            <Text style={styles.refreshLabel}>{refreshing ? messages.refreshing : messages.refresh}</Text>
           </Pressable>
         </View>
 
         {query.isPending ? (
           <View style={[styles.card, styles.stateCard]}>
-            <Text style={styles.stateText}>Loading usage...</Text>
+            <Text style={styles.stateText}>{messages.loading}</Text>
           </View>
         ) : null}
 
         {query.isError ? (
           <View style={[styles.card, styles.stateCard]}>
-            <Text style={styles.stateTitle}>Unable to load usage</Text>
+            <Text style={styles.stateTitle}>{messages.errorTitle}</Text>
             <Text style={styles.stateText}>
               {query.error instanceof Error ? query.error.message : String(query.error)}
             </Text>
             <Pressable accessibilityRole="button" style={styles.retryButton} onPress={() => void query.refetch()}>
-              <Text style={styles.retryLabel}>Try again</Text>
+              <Text style={styles.retryLabel}>{messages.retry}</Text>
             </Pressable>
           </View>
         ) : null}
 
         {!query.isPending && !query.isError && providers.length === 0 ? (
           <View style={[styles.card, styles.stateCard]}>
-            <Text style={styles.stateText}>No usage data</Text>
+            <Text style={styles.stateText}>{messages.empty}</Text>
           </View>
         ) : null}
 
@@ -340,11 +397,18 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
             {providers.map((provider, index) => (
               <Fragment key={provider.providerId}>
                 {index > 0 ? <View style={styles.divider} /> : null}
-                <ProviderBlock provider={provider} theme={theme} styles={styles} />
+                <ProviderBlock
+                  provider={provider}
+                  theme={theme}
+                  styles={styles}
+                  locale={locale}
+                  messages={messages}
+                />
               </Fragment>
             ))}
           </View>
         ) : null}
+        </View>
       </ScrollView>
     </View>
   );
