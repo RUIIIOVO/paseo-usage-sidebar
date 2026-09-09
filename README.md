@@ -28,6 +28,22 @@ cannot import, so rows lead with the provider name.
 
 The surface refreshes every 60 seconds and on demand from **Refresh**.
 
+## Language
+
+The panel is localized into every language Paseo ships: Arabic, English, Spanish, French, Japanese,
+Korean, Brazilian Portuguese, Russian, and Simplified Chinese. Arabic renders right-to-left.
+
+Paseo does not pass its language to plugins — `PluginHostProps` carries theme, host, and layout
+only, and the language preference lives in client-side app settings rather than daemon config. The
+plugin therefore reproduces Paseo's own `resolveSupportedLocale` algorithm against the same
+`navigator.languages` the app reads, which matches Paseo exactly while its language is set to
+**System** (the default). If you override Paseo's language to something other than your system
+locale, the panel follows the system locale instead.
+
+Note that Paseo's own usage copy is hardcoded English (`"Plan usage"`, `"Refresh"`, ...), so on a
+non-English install this panel is localized where Settings → Usage is not. Provider-supplied strings
+(`Session`, `Weekly`, `Extra usage`) come from the daemon in English and are shown verbatim.
+
 ## Install
 
 ```bash
@@ -78,8 +94,10 @@ The daemon endpoint is resolved from `daemon.listen` in `~/.paseo/config.json`, 
 
 ## Known limitations
 
-- **Sidebar placement is host-owned.** Paseo renders plugin sidebar items in its own group, below
-  the built-in entries. A plugin cannot place an item in the sidebar footer.
+- **Sidebar placement and shape are host-owned.** A sidebar contribution is
+  `{ id, title, icon, surface }` and nothing more, so a plugin cannot render meters, badges, or any
+  custom component in the sidebar itself, nor place an item in the sidebar footer. Usage is a panel
+  you open, not an always-visible sidebar widget. This is the same in Paseo 0.7 and 0.8.
 - **The 0.7 fallback is local-only.** It assumes a loopback daemon with no password. A remote host,
   a password-protected daemon, or a runtime without a global `WebSocket` surfaces an error in the
   panel instead of numbers. Paseo 0.8 has none of these constraints because it uses the SDK.
@@ -113,6 +131,8 @@ plugin never runs a package manager.
 | `index.ts` | Registers the RPC handler, surface, sidebar item, and Command Center item. |
 | `usage.shared.ts` | Zod contract mirroring the daemon's usage payload. |
 | `usage-format.shared.ts` | Percentage, reset, age, and balance formatting matching Paseo's helpers. |
+| `i18n.shared.ts` | Message catalog for the nine locales Paseo supports. |
+| `locale.client.ts` | Locale resolution mirroring Paseo's `resolveSupportedLocale`. |
 | `usage.server.ts` | SDK-first read with the 0.7 daemon WebSocket fallback. |
 | `usage-surface.client.tsx` | The sidebar surface. |
 
