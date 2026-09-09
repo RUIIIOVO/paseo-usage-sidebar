@@ -11,18 +11,22 @@ No new credentials, no vendor CLI, no second polling path: the numbers come from
 
 ## What it shows
 
-One card per provider that reports usage. Each card carries:
+The surface reproduces the layout of Settings → Usage: one bordered card, one row per provider,
+hairline dividers between them.
 
-- **Quota windows** — session, weekly, and model-scoped windows with the consumed share, a
-  zero-baseline bar, and a reset countdown (`Resets in 3h 12m`).
-- **Balances** — remaining money, credits, requests, or tokens where the provider reports them.
+- **Quota windows** — session, weekly, and model-scoped windows as `57% · resets 2h` with a
+  zero-baseline bar.
+- **Balances** — money, credits, requests, or tokens, against a ceiling where one exists.
 - **Details** — provider-supplied key/value lines such as `Extra usage: Disabled`.
+- **Status** — providers that are not signed in stay listed with an `Unavailable` dot rather than
+  disappearing, so the list matches what Settings shows.
 
-Bar colour follows the tone the daemon assigns, matching Paseo's own meters: above 90% consumed is
-danger, 70% and above is warning. Providers that are not signed in are collapsed into a single
-footer count rather than padding the list with empty cards.
+Spacing, type scale, tone thresholds, and the reset/`runs out` wording are taken from Paseo's own
+provider-usage components, so the panel reads identically to the settings screen. The one
+difference is provider brand logos: those come from a host-internal icon registry that plugins
+cannot import, so rows lead with the provider name.
 
-The surface refreshes every 60 seconds and on demand from the refresh button.
+The surface refreshes every 60 seconds and on demand from **Refresh**.
 
 ## Install
 
@@ -108,6 +112,7 @@ plugin never runs a package manager.
 | --- | --- |
 | `index.ts` | Registers the RPC handler, surface, sidebar item, and Command Center item. |
 | `usage.shared.ts` | Zod contract mirroring the daemon's usage payload. |
+| `usage-format.shared.ts` | Percentage, reset, age, and balance formatting matching Paseo's helpers. |
 | `usage.server.ts` | SDK-first read with the 0.7 daemon WebSocket fallback. |
 | `usage-surface.client.tsx` | The sidebar surface. |
 

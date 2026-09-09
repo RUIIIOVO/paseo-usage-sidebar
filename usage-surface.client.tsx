@@ -2,8 +2,18 @@ import type { PluginSurfaceProps, PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/react-native";
 import { useQuery } from "@tanstack/react-query";
-import React, { useMemo } from "react";
+import React, { Fragment, useMemo } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  balanceReading,
+  clampPct,
+  deriveTone,
+  formatAgo,
+  formatPct,
+  formatResetLabel,
+  statusLabel,
+  windowUsedPct,
+} from "./usage-format.shared";
 import {
   listUsage,
   type ProviderUsage,
@@ -16,7 +26,12 @@ import {
 const REFRESH_INTERVAL_MS = 60_000;
 const STALE_TIME_MS = 30_000;
 
-function toneColor(theme: PluginTheme, tone: UsageTone | undefined): string {
+/** Paseo's design tokens, inlined because the plugin theme only exposes colors. */
+const SPACE = { 1: 4, 1.5: 6, 2: 8, 3: 12, 4: 16, 6: 24 } as const;
+const FONT = { sm: 12, base: 14 } as const;
+const RADIUS_LG = 8;
+
+function fillColor(theme: PluginTheme, tone: UsageTone | undefined): string {
   switch (tone) {
     case "ok":
       return theme.colors.statusSuccess;
@@ -29,140 +44,90 @@ function toneColor(theme: PluginTheme, tone: UsageTone | undefined): string {
   }
 }
 
-/** The daemon already classifies each row; this only covers rows that arrive without a tone. */
-function deriveTone(usedPct: number | null | undefined, tone: UsageTone | undefined): UsageTone {
-  if (tone) {
-    return tone;
-  }
-  if (usedPct == null) {
-    return "default";
-  }
-  if (usedPct > 90) {
-    return "danger";
-  }
-  if (usedPct >= 70) {
-    return "warning";
-  }
-  return "default";
-}
-
-function formatPct(value: number | null | undefined): string {
-  return value == null ? "—" : `${Math.round(value)}%`;
-}
-
-function formatReset(iso: string | null | undefined): string | null {
-  if (!iso) {
-    return null;
-  }
-  const target = Date.parse(iso);
-  if (Number.isNaN(target)) {
-    return null;
-  }
-  const deltaMs = target - Date.now();
-  if (deltaMs <= 0) {
-    return "Resets now";
-  }
-  const minutes = Math.floor(deltaMs / 60_000);
-  if (minutes < 60) {
-    return `Resets in ${Math.max(minutes, 1)}m`;
-  }
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    const remainder = minutes % 60;
-    return remainder ? `Resets in ${hours}h ${remainder}m` : `Resets in ${hours}h`;
-  }
-  const days = Math.floor(hours / 24);
-  const remainderHours = hours % 24;
-  return remainderHours ? `Resets in ${days}d ${remainderHours}h` : `Resets in ${days}d`;
-}
-
-function formatTimestamp(iso: string | null | undefined): string | null {
-  if (!iso) {
-    return null;
-  }
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  return parsed.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-}
-
-function formatBalance(balance: UsageBalance): string {
-  const amount = balance.remaining ?? balance.used;
-  if (amount == null) {
-    return "—";
-  }
-  switch (balance.unit) {
-    case "usd":
-      return `$${amount.toFixed(2)}`;
-    case "credits":
-      return `${Math.round(amount)} credits`;
-    case "requests":
-      return `${Math.round(amount)} requests`;
-    case "tokens":
-      return `${Math.round(amount)} tokens`;
-    default:
-      return String(amount);
-  }
-}
-
 function useStyles(theme: PluginTheme, compact: boolean) {
   return useMemo(
     () =>
       StyleSheet.create({
         screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-        header: {
+        content: { padding: compact ? SPACE[4] : SPACE[6] },
+        sectionHeader: {
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          paddingHorizontal: compact ? 16 : 24,
-          paddingTop: compact ? 16 : 24,
-          paddingBottom: 12,
+          marginBottom: SPACE[3],
+          marginLeft: SPACE[1],
         },
-        title: { color: theme.colors.foreground, fontSize: 18, fontWeight: "600" },
+        sectionHeaderTitle: { color: theme.colors.foregroundMuted, fontSize: FONT.sm },
         refreshButton: {
-          width: 32,
-          height: 32,
+          flexDirection: "row",
           alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 8,
+          gap: SPACE[1.5],
+          paddingHorizontal: SPACE[2],
+          paddingVertical: SPACE[1],
+          borderRadius: 6,
         },
         refreshButtonPressed: { backgroundColor: theme.colors.surface2 },
-        body: { paddingHorizontal: compact ? 16 : 24, paddingBottom: 24, gap: 12 },
+        refreshLabel: { color: theme.colors.foregroundMuted, fontSize: FONT.sm },
+
         card: {
+          backgroundColor: theme.colors.surface1,
+          borderRadius: RADIUS_LG,
           borderWidth: 1,
           borderColor: theme.colors.border,
-          borderRadius: 12,
-          backgroundColor: theme.colors.surface1,
-          padding: 14,
-          gap: 12,
+          overflow: "hidden",
         },
-        cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-        providerName: { color: theme.colors.foreground, fontSize: 14, fontWeight: "600" },
-        planLabel: { color: theme.colors.foregroundMuted, fontSize: 12 },
-        row: { gap: 6 },
-        rowHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 8 },
-        rowLabel: { color: theme.colors.foreground, fontSize: 13, flexShrink: 1 },
-        rowValue: { fontSize: 13, fontWeight: "600" },
-        rowMeta: { color: theme.colors.foregroundMuted, fontSize: 11 },
+        divider: { height: 1, backgroundColor: theme.colors.border },
+
+        provider: { gap: SPACE[4], paddingVertical: SPACE[4], paddingHorizontal: SPACE[4] },
+        providerHeader: { flexDirection: "row", alignItems: "center", gap: SPACE[2] },
+        providerName: { flexShrink: 1, color: theme.colors.foreground, fontSize: FONT.base },
+        headerSpacer: { flex: 1 },
+        planBadge: {
+          paddingHorizontal: SPACE[2],
+          paddingVertical: 2,
+          borderRadius: 9999,
+          backgroundColor: theme.colors.surface2,
+        },
+        planBadgeLabel: { color: theme.colors.foregroundMuted, fontSize: FONT.sm },
+        statusRow: { flexDirection: "row", alignItems: "center", gap: SPACE[1.5] },
+        statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.foregroundMuted },
+        statusDotError: { backgroundColor: theme.colors.statusDanger },
+        statusLabel: { color: theme.colors.foregroundMuted, fontSize: FONT.sm },
+
+        bars: { gap: SPACE[3] },
+        bar: { gap: 3 },
+        barLabelRow: {
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: SPACE[2],
+        },
+        barLabel: { flexShrink: 1, color: theme.colors.foregroundMuted, fontSize: FONT.sm },
+        barValue: { color: theme.colors.foreground, fontSize: FONT.sm, fontWeight: "500" },
+        barReset: { color: theme.colors.foregroundMuted, fontWeight: "normal" },
+        barAtRisk: { color: theme.colors.statusDanger, fontWeight: "normal" },
         track: { height: 4, borderRadius: 2, backgroundColor: theme.colors.surface2, overflow: "hidden" },
         fill: { height: 4, borderRadius: 2 },
-        detailRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-        detailLabel: { color: theme.colors.foregroundMuted, fontSize: 12 },
-        detailValue: { color: theme.colors.foreground, fontSize: 12 },
-        errorText: { color: theme.colors.statusDanger, fontSize: 12 },
-        stateBox: { padding: 24, gap: 8, alignItems: "center" },
-        stateTitle: { color: theme.colors.foreground, fontSize: 14, fontWeight: "600", textAlign: "center" },
-        stateDetail: { color: theme.colors.foregroundMuted, fontSize: 12, textAlign: "center" },
+
+        details: { gap: SPACE[1] },
+        detailRow: { flexDirection: "row", justifyContent: "space-between", gap: SPACE[2] },
+        detailLabel: { flexShrink: 1, color: theme.colors.foregroundMuted, fontSize: FONT.sm },
+        detailValue: { color: theme.colors.foreground, fontSize: FONT.sm },
+
+        providerError: { color: theme.colors.statusDanger, fontSize: FONT.sm, lineHeight: FONT.sm * 1.4 },
+        providerFooter: { color: theme.colors.foregroundMuted, fontSize: FONT.sm },
+
+        stateCard: { padding: SPACE[4], alignItems: "center", gap: SPACE[3] },
+        stateText: { color: theme.colors.foregroundMuted, fontSize: FONT.base, textAlign: "center" },
+        stateTitle: { color: theme.colors.foreground, fontSize: FONT.base },
         retryButton: {
-          marginTop: 8,
-          paddingHorizontal: 14,
-          paddingVertical: 8,
-          borderRadius: 8,
-          backgroundColor: theme.colors.accent,
+          paddingHorizontal: SPACE[3],
+          paddingVertical: SPACE[1.5],
+          borderRadius: 6,
+          borderWidth: 1,
+          borderColor: theme.colors.border,
         },
-        retryLabel: { color: theme.colors.accentForeground, fontSize: 13, fontWeight: "600" },
-        footer: { color: theme.colors.foregroundMuted, fontSize: 11, paddingTop: 4 },
+        retryLabel: { color: theme.colors.foreground, fontSize: FONT.sm },
       }),
     [theme, compact],
   );
@@ -170,40 +135,64 @@ function useStyles(theme: PluginTheme, compact: boolean) {
 
 type Styles = ReturnType<typeof useStyles>;
 
-function UsageMeter({
-  label,
-  usedPct,
-  meta,
-  tone,
-  theme,
-  styles,
-}: {
-  label: string;
-  usedPct: number | null | undefined;
-  meta: string | null;
-  tone: UsageTone;
-  theme: PluginTheme;
-  styles: Styles;
-}) {
-  const color = toneColor(theme, tone);
-  const width = usedPct == null ? 0 : Math.min(Math.max(usedPct, 0), 100);
+function WindowBar({ window, theme, styles }: { window: UsageWindow; theme: PluginTheme; styles: Styles }) {
+  const usedPct = windowUsedPct(window);
+  const tone = window.tone ?? deriveTone(usedPct);
+  const atRisk = window.runsOutAt != null && window.shortfallPct != null;
+  const trailing = atRisk
+    ? `runs out ${formatResetLabel(window.runsOutAt)?.replace("resets ", "") ?? ""}`.trim()
+    : formatResetLabel(window.resetsAt);
+
   return (
-    <View style={styles.row}>
-      <View style={styles.rowHeader}>
-        <Text style={styles.rowLabel} numberOfLines={1}>
-          {label}
+    <View style={styles.bar}>
+      <View style={styles.barLabelRow}>
+        <Text style={styles.barLabel} numberOfLines={1}>
+          {window.label}
         </Text>
-        <Text style={[styles.rowValue, { color }]}>{formatPct(usedPct)}</Text>
+        <Text style={styles.barValue}>
+          {usedPct != null ? formatPct(usedPct) : "—"}
+          {trailing ? <Text style={atRisk ? styles.barAtRisk : styles.barReset}>{` · ${trailing}`}</Text> : null}
+        </Text>
       </View>
       <View style={styles.track}>
-        <View style={[styles.fill, { width: `${width}%`, backgroundColor: color }]} />
+        <View
+          style={[styles.fill, { width: `${clampPct(usedPct ?? 0)}%`, backgroundColor: fillColor(theme, tone) }]}
+        />
       </View>
-      {meta ? <Text style={styles.rowMeta}>{meta}</Text> : null}
     </View>
   );
 }
 
-function ProviderCard({
+function BalanceBar({ balance, theme, styles }: { balance: UsageBalance; theme: PluginTheme; styles: Styles }) {
+  const { amountText, usedPct } = balanceReading(balance);
+  const reset = formatResetLabel(balance.resetsAt);
+
+  return (
+    <View style={styles.bar}>
+      <View style={styles.barLabelRow}>
+        <Text style={styles.barLabel} numberOfLines={1}>
+          {balance.label}
+        </Text>
+        <Text style={styles.barValue}>
+          {amountText}
+          {reset ? <Text style={styles.barReset}>{` · ${reset}`}</Text> : null}
+        </Text>
+      </View>
+      {usedPct != null ? (
+        <View style={styles.track}>
+          <View
+            style={[
+              styles.fill,
+              { width: `${clampPct(usedPct)}%`, backgroundColor: fillColor(theme, balance.tone ?? "default") },
+            ]}
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function ProviderBlock({
   provider,
   theme,
   styles,
@@ -212,54 +201,78 @@ function ProviderCard({
   theme: PluginTheme;
   styles: Styles;
 }) {
+  const status = statusLabel(provider.status);
+  const footer = useMemo(() => {
+    const ago = formatAgo(provider.fetchedAt);
+    return [provider.sourceLabel, ago ? `Updated ${ago}` : null].filter(Boolean).join(" · ");
+  }, [provider.sourceLabel, provider.fetchedAt]);
+
+  const hasBars = provider.windows.length > 0 || provider.balances.length > 0;
+
   return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
+    <View style={styles.provider}>
+      <View style={styles.providerHeader}>
         <Text style={styles.providerName} numberOfLines={1}>
           {provider.displayName}
         </Text>
         {provider.planLabel ? (
-          <Text style={styles.planLabel} numberOfLines={1}>
-            {provider.planLabel}
-          </Text>
+          <View style={styles.planBadge}>
+            <Text style={styles.planBadgeLabel} numberOfLines={1}>
+              {provider.planLabel}
+            </Text>
+          </View>
+        ) : null}
+        <View style={styles.headerSpacer} />
+        {status ? (
+          <View style={styles.statusRow}>
+            <View
+              style={[
+                styles.statusDot,
+                provider.status === "error" ? styles.statusDotError : null,
+              ]}
+            />
+            <Text style={styles.statusLabel}>{status}</Text>
+          </View>
         ) : null}
       </View>
 
-      {provider.error ? <Text style={styles.errorText}>{provider.error}</Text> : null}
+      {provider.error ? (
+        <Text style={styles.providerError} numberOfLines={3}>
+          {provider.error}
+        </Text>
+      ) : null}
 
-      {provider.windows.map((window: UsageWindow) => (
-        <UsageMeter
-          key={window.id}
-          label={window.label}
-          usedPct={window.usedPct}
-          meta={formatReset(window.resetsAt)}
-          tone={deriveTone(window.usedPct, window.tone)}
-          theme={theme}
-          styles={styles}
-        />
-      ))}
-
-      {provider.balances.map((balance: UsageBalance) => (
-        <View key={balance.id} style={styles.detailRow}>
-          <Text style={styles.detailLabel} numberOfLines={1}>
-            {balance.label}
-          </Text>
-          <Text style={[styles.detailValue, { color: toneColor(theme, balance.tone) }]}>
-            {formatBalance(balance)}
-          </Text>
+      {hasBars ? (
+        <View style={styles.bars}>
+          {provider.windows.map((window) => (
+            <WindowBar key={window.id} window={window} theme={theme} styles={styles} />
+          ))}
+          {provider.balances.map((balance) => (
+            <BalanceBar key={balance.id} balance={balance} theme={theme} styles={styles} />
+          ))}
         </View>
-      ))}
+      ) : null}
 
-      {provider.details.map((detail) => (
-        <View key={detail.id} style={styles.detailRow}>
-          <Text style={styles.detailLabel} numberOfLines={1}>
-            {detail.label}
-          </Text>
-          <Text style={styles.detailValue} numberOfLines={1}>
-            {detail.value}
-          </Text>
+      {provider.details.length > 0 ? (
+        <View style={styles.details}>
+          {provider.details.map((detail) => (
+            <View key={detail.id} style={styles.detailRow}>
+              <Text style={styles.detailLabel} numberOfLines={1}>
+                {detail.label}
+              </Text>
+              <Text style={styles.detailValue} numberOfLines={1}>
+                {detail.value}
+              </Text>
+            </View>
+          ))}
         </View>
-      ))}
+      ) : null}
+
+      {footer ? (
+        <Text style={styles.providerFooter} numberOfLines={1}>
+          {footer}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -275,59 +288,39 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
     staleTime: STALE_TIME_MS,
   });
 
-  const snapshot = query.data;
-  const reported = useMemo(
-    () => (snapshot?.providers ?? []).filter((provider) => provider.status !== "unavailable"),
-    [snapshot],
-  );
-  const unavailableCount = (snapshot?.providers.length ?? 0) - reported.length;
-
-  const footer = useMemo(() => {
-    if (!snapshot) {
-      return null;
-    }
-    const parts: string[] = [];
-    const stamp = formatTimestamp(snapshot.fetchedAt);
-    if (stamp) {
-      parts.push(`Updated ${stamp}`);
-    }
-    parts.push(snapshot.source === "sdk" ? "via Paseo SDK" : "via local daemon");
-    if (unavailableCount > 0) {
-      parts.push(`${unavailableCount} provider${unavailableCount === 1 ? "" : "s"} not signed in`);
-    }
-    return parts.join(" · ");
-  }, [snapshot, unavailableCount]);
+  const providers = query.data?.providers ?? [];
+  const refreshing = query.isFetching;
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Plan usage</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Refresh plan usage"
-          onPress={() => void query.refetch()}
-          style={({ pressed }) => [styles.refreshButton, pressed ? styles.refreshButtonPressed : null]}
-        >
-          {query.isFetching ? (
-            <ActivityIndicator size="small" color={theme.colors.foregroundMuted} />
-          ) : (
-            <Icon name="RefreshCw" size={16} color={theme.colors.foregroundMuted} />
-          )}
-        </Pressable>
-      </View>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionHeaderTitle}>Plan usage</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Refresh"
+            onPress={() => void query.refetch()}
+            style={({ pressed }) => [styles.refreshButton, pressed ? styles.refreshButtonPressed : null]}
+          >
+            {refreshing ? (
+              <ActivityIndicator size="small" color={theme.colors.foregroundMuted} />
+            ) : (
+              <Icon name="RefreshCw" size={14} color={theme.colors.foregroundMuted} />
+            )}
+            <Text style={styles.refreshLabel}>{refreshing ? "Refreshing..." : "Refresh"}</Text>
+          </Pressable>
+        </View>
 
-      <ScrollView contentContainerStyle={styles.body}>
         {query.isPending ? (
-          <View style={styles.stateBox}>
-            <ActivityIndicator color={theme.colors.foregroundMuted} />
-            <Text style={styles.stateDetail}>Loading usage…</Text>
+          <View style={[styles.card, styles.stateCard]}>
+            <Text style={styles.stateText}>Loading usage...</Text>
           </View>
         ) : null}
 
         {query.isError ? (
-          <View style={styles.stateBox}>
+          <View style={[styles.card, styles.stateCard]}>
             <Text style={styles.stateTitle}>Unable to load usage</Text>
-            <Text style={styles.stateDetail}>
+            <Text style={styles.stateText}>
               {query.error instanceof Error ? query.error.message : String(query.error)}
             </Text>
             <Pressable accessibilityRole="button" style={styles.retryButton} onPress={() => void query.refetch()}>
@@ -336,20 +329,22 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
           </View>
         ) : null}
 
-        {!query.isPending && !query.isError && reported.length === 0 ? (
-          <View style={styles.stateBox}>
-            <Text style={styles.stateTitle}>No usage data</Text>
-            <Text style={styles.stateDetail}>
-              No provider on this host reports plan usage. Sign in to a provider that publishes quota windows.
-            </Text>
+        {!query.isPending && !query.isError && providers.length === 0 ? (
+          <View style={[styles.card, styles.stateCard]}>
+            <Text style={styles.stateText}>No usage data</Text>
           </View>
         ) : null}
 
-        {reported.map((provider) => (
-          <ProviderCard key={provider.providerId} provider={provider} theme={theme} styles={styles} />
-        ))}
-
-        {footer ? <Text style={styles.footer}>{footer}</Text> : null}
+        {providers.length > 0 ? (
+          <View style={styles.card}>
+            {providers.map((provider, index) => (
+              <Fragment key={provider.providerId}>
+                {index > 0 ? <View style={styles.divider} /> : null}
+                <ProviderBlock provider={provider} theme={theme} styles={styles} />
+              </Fragment>
+            ))}
+          </View>
+        ) : null}
       </ScrollView>
     </View>
   );
