@@ -1,0 +1,28 @@
+import type { PluginContext } from "@getpaseo/plugin";
+import { UsageSurface } from "./usage-surface.client";
+import { readUsage } from "./usage.server";
+import { listUsage } from "./usage.shared";
+
+const SURFACE_ID = "usage";
+
+export default function contribute(plugin: PluginContext) {
+  plugin.handle(listUsage, readUsage);
+  plugin.addSurface(SURFACE_ID, UsageSurface);
+  plugin.addSidebarItem({
+    id: "usage",
+    title: "Usage",
+    icon: "Gauge",
+    surface: SURFACE_ID,
+  });
+  plugin.addCommandCenterItem({
+    id: "open-usage",
+    title: "Open plan usage",
+    icon: "Gauge",
+    keywords: ["usage", "quota", "plan", "limit", "tokens"],
+    context: "global",
+    onSelect: (context) => {
+      context.openSurface(SURFACE_ID);
+    },
+  });
+  return () => {};
+}
