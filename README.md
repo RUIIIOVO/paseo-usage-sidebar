@@ -44,8 +44,14 @@ plugin client bundles inside the same renderer. Consequences:
   id). If a future Paseo release renames it, the meter stops appearing. Nothing else breaks.
 - **Fail-soft by construction.** Every step — anchor lookup, colour probing, RPC — degrades to
   rendering nothing rather than throwing.
-- **Colours are probed, not given.** Text colour is read from the sidebar row's computed style and
-  the tone colours come from Paseo's status palette, picked by background luminance.
+- **Colours are measured, not guessed.** Theme colors reach plugins only as props inside a surface,
+  and this meter is a DOM node outside React, so it identifies the active theme from what is actually
+  painted: the sidebar background is matched against Paseo's seven built-in themes (Light, Dark,
+  Zinc, Midnight, Claude, Ghostty, Pure black), each of which paints a distinct one, and the meter
+  then uses that theme's own track and muted-foreground tokens. An unrecognized theme — a
+  plugin-contributed one — falls back to the row's rendered text colour with a light or dark status
+  palette chosen by luminance. Colours are re-probed every two seconds, so switching themes updates
+  the meter without a reload.
 - The node is `pointer-events:none`, so it never intercepts a click meant for the sidebar.
 
 Set `USAGE_SIDEBAR_METER=0`... is not implemented in 0.7 because plugins have no settings storage;
