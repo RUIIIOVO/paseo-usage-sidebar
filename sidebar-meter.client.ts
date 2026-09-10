@@ -19,44 +19,132 @@ import { listUsage, type UsageSnapshot, type UsageTone } from "./usage.shared";
  */
 const ANCHOR_SELECTOR = '[data-testid="plugin-sidebar-usage-sidebar-usage"]';
 const REFRESH_INTERVAL_MS = 60_000;
+/** Theme changes are not announced in the DOM, so the probed colours are polled. */
+const APPEARANCE_POLL_MS = 2_000;
 const MAX_ROWS = 4;
 const NODE_MARK = "data-usage-sidebar-meter";
 
-/** Paseo's own status palette, dark and light variants. */
-const TONE_COLORS = {
-  dark: { ok: "#6cb17b", warning: "#c09664", danger: "#d8847b", default: "#8b90a0" },
-  light: { ok: "#3e704a", warning: "#7b5d39", danger: "#9d433b", default: "#6b7280" },
-} as const;
+/**
+ * Paseo's built-in themes, keyed by the sidebar background they paint.
+ *
+ * Plugins receive theme colors as props inside a surface, but this meter is a raw
+ * DOM node outside React, so the theme has to be identified from what is actually
+ * rendered. Every built-in theme paints a distinct sidebar background, which makes
+ * it a reliable key. Values are Paseo's own tokens, so the meter matches the app
+ * exactly rather than approximating it.
+ */
+type Palette = Record<UsageTone, string>;
+
+const STATUS_DARK: Palette = { ok: "#6cb17b", warning: "#c09664", danger: "#d8847b", default: "#8b90a0" };
+const STATUS_LIGHT: Palette = { ok: "#3e704a", warning: "#7b5d39", danger: "#9d433b", default: "#71717a" };
+
+type ThemeTokens = { track: string; label: string; status: Palette };
+
+const THEMES: ReadonlyArray<{ sidebar: [number, number, number] } & ThemeTokens> = [
+  // light
+  { sidebar: [244, 244, 245], track: "#e4e4e7", label: "#71717a", status: STATUS_LIGHT },
+  // dark
+  { sidebar: [20, 23, 22], track: "#434645", label: "#A1A5A4", status: STATUS_DARK },
+  // zinc
+  { sidebar: [19, 19, 22], track: "#3f3f46", label: "#a1a1aa", status: STATUS_DARK },
+  // midnight
+  { sidebar: [18, 20, 32], track: "#3c3e4c", label: "#9a9db0", status: STATUS_DARK },
+  // claude
+  { sidebar: [26, 25, 24], track: "#4a4745", label: "#ada9a5", status: STATUS_DARK },
+  // ghostty
+  { sidebar: [33, 37, 45], track: "#4a4f5e", label: "#c8ccd8", status: STATUS_DARK },
+  // pure black
+  { sidebar: [0, 0, 0], track: "#202020", label: "#a1a1aa", status: STATUS_DARK },
+];
+
+/** dark (#141716) and zinc (#131316) differ by 5, so match the nearest theme, not the first in range. */
+const MATCH_MAX_DISTANCE = 12;
 
 type Row = { label: string; usedPct: number | null; tone: UsageTone };
 
-function parseRgb(value: string): [number, number, number] | null {
+function parseColor(value: string): { rgb: [number, number, number]; alpha: number } | null {
   const match = value.match(/rgba?\(([^)]+)\)/);
   if (!match) {
     return null;
   }
-  const parts = (match[1] ?? "").split(",").map((part) => Number.parseFloat(part.trim()));
-  if (parts.length < 3 || parts.some((part) => Number.isNaN(part))) {
+  const parts = (match[1] ?? "")
+    .split(/[,/]/)
+    .map((part) => Number.parseFloat(part.trim()))
+    .filter((part) => !Number.isNaN(part));
+  if (parts.length < 3) {
     return null;
   }
-  return [parts[0] as number, parts[1] as number, parts[2] as number];
+  return {
+    rgb: [parts[0] as number, parts[1] as number, parts[2] as number],
+    alpha: parts.length > 3 ? (parts[3] as number) : 1,
+  };
 }
 
-/** Walk up for the first opaque background so a transparent row does not read as dark. */
-function isDarkBackground(element: Element): boolean {
-  let current: Element | null = element;
+function luminanceOf(rgb: [number, number, number]): number {
+  return (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
+}
+
+/** First ancestor background that actually paints; a row's own background is transparent. */
+function paintedBackground(anchor: Element): [number, number, number] | null {
+  let current: Element | null = anchor;
   while (current) {
-    const rgb = parseRgb(getComputedStyle(current).backgroundColor);
-    if (rgb) {
-      const [r, g, b] = rgb;
-      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-      if (luminance > 0 || r + g + b > 0) {
-        return luminance < 0.5;
-      }
+    const parsed = parseColor(getComputedStyle(current).backgroundColor);
+    if (parsed && parsed.alpha > 0.05) {
+      return parsed.rgb;
     }
     current = current.parentElement;
   }
-  return true;
+  return null;
+}
+
+function matchTheme(background: [number, number, number]): ThemeTokens | null {
+  let best: ThemeTokens | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const theme of THEMES) {
+    const distance =
+      Math.abs(theme.sidebar[0] - background[0]) +
+      Math.abs(theme.sidebar[1] - background[1]) +
+      Math.abs(theme.sidebar[2] - background[2]);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = theme;
+    }
+  }
+  return bestDistance <= MATCH_MAX_DISTANCE ? best : null;
+}
+
+type Appearance = { labelColor: string; trackColor: string; palette: Palette; key: string };
+
+/**
+ * Exact tokens for a built-in theme; for anything else (a plugin-contributed
+ * theme) fall back to the rendered text color plus a light/dark status palette
+ * chosen by background luminance.
+ */
+function readAppearance(): Appearance | null {
+  const anchor = document.querySelector(ANCHOR_SELECTOR);
+  if (!anchor) {
+    return null;
+  }
+  const background = paintedBackground(anchor);
+  const matched = background ? matchTheme(background) : null;
+  if (matched) {
+    return {
+      labelColor: matched.label,
+      trackColor: matched.track,
+      palette: matched.status,
+      key: `${matched.label}|${matched.track}|${matched.status.ok}`,
+    };
+  }
+
+  const dark = background ? luminanceOf(background) <= 0.5 : true;
+  const labelColor = getComputedStyle(anchor).color || (dark ? "#A1A5A4" : "#71717a");
+  const rgb = parseColor(labelColor)?.rgb ?? (dark ? [161, 165, 164] : [113, 113, 122]);
+  return {
+    labelColor,
+    trackColor: `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.22)`,
+    palette: dark ? STATUS_DARK : STATUS_LIGHT,
+    key: `fallback|${labelColor}|${dark ? "dark" : "light"}`,
+  };
 }
 
 function toRows(snapshot: UsageSnapshot): Row[] {
@@ -85,16 +173,30 @@ export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
   let node: HTMLElement | null = null;
   let rows: Row[] = [];
   let stopped = false;
+  let appearance: Appearance | null = null;
+
+  /** Repaints only when the measured colours actually changed. */
+  function syncAppearance(): boolean {
+    const next = readAppearance();
+    if (!next) {
+      return false;
+    }
+    if (appearance && appearance.key === next.key) {
+      return false;
+    }
+    appearance = next;
+    return true;
+  }
 
   function paint(): void {
     if (!node) {
       return;
     }
-    const anchor = document.querySelector(ANCHOR_SELECTOR);
-    const labelColor = anchor ? getComputedStyle(anchor).color : "#8b90a0";
-    const palette = TONE_COLORS[anchor && !isDarkBackground(anchor) ? "light" : "dark"];
-    const rgb = parseRgb(labelColor) ?? [139, 144, 160];
-    const trackColor = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.18)`;
+    const { labelColor, trackColor, palette } = appearance ?? {
+      labelColor: STATUS_DARK.default,
+      trackColor: "rgba(139, 144, 160, 0.22)",
+      palette: STATUS_DARK,
+    };
 
     node.textContent = "";
     if (rows.length === 0) {
@@ -161,6 +263,7 @@ export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
 
     parent.insertBefore(created, anchor.nextSibling);
     node = created;
+    syncAppearance();
     paint();
   }
 
@@ -169,6 +272,7 @@ export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
       const snapshot = await client.rpc(listUsage, {});
       rows = toRows(snapshot as UsageSnapshot);
       ensureMounted();
+      syncAppearance();
       paint();
     } catch {
       // Keep the last painted rows; the panel surfaces the real error.
@@ -182,10 +286,25 @@ export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
   ensureMounted();
   void refresh();
   const timer = setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
+  const appearanceTimer = setInterval(() => {
+    if (!stopped && syncAppearance()) {
+      paint();
+    }
+  }, APPEARANCE_POLL_MS);
+
+  const media = typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: light)") : null;
+  const onSchemeChange = () => {
+    if (syncAppearance()) {
+      paint();
+    }
+  };
+  media?.addEventListener("change", onSchemeChange);
 
   return () => {
     stopped = true;
     clearInterval(timer);
+    clearInterval(appearanceTimer);
+    media?.removeEventListener("change", onSchemeChange);
     observer.disconnect();
     node?.remove();
     node = null;
