@@ -1,4 +1,6 @@
 import type { PluginContext } from "@getpaseo/plugin";
+import { startSidebarMeter } from "./sidebar-meter.client";
+import { sidebarTitle } from "./sidebar-title.client";
 import { UsageSurface } from "./usage-surface.client";
 import { readUsage } from "./usage.server";
 import { listUsage } from "./usage.shared";
@@ -10,13 +12,14 @@ export default function contribute(plugin: PluginContext) {
   plugin.addSurface(SURFACE_ID, UsageSurface);
   plugin.addSidebarItem({
     id: "usage",
-    title: "Usage",
+    title: sidebarTitle(),
     icon: "Gauge",
     surface: SURFACE_ID,
   });
+  plugin.addClientSide(startSidebarMeter);
   plugin.addCommandCenterItem({
     id: "open-usage",
-    title: "Open plan usage",
+    title: sidebarTitle(),
     icon: "Gauge",
     keywords: ["usage", "quota", "plan", "limit", "tokens"],
     context: "global",

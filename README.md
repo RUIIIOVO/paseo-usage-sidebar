@@ -28,6 +28,29 @@ cannot import, so rows lead with the provider name.
 
 The surface refreshes every 60 seconds and on demand from **Refresh**.
 
+## Sidebar meter (desktop and web)
+
+Under the sidebar entry, the plugin also renders a compact always-visible meter: one row per quota
+window, label, percentage, and a thin bar. It refreshes on the same 60-second cycle and needs no
+click.
+
+This is deliberately outside the plugin API. Paseo has no sidebar-widget contribution — a sidebar
+item is `{ id, title, icon, surface }` and the row is rendered by the host — so the meter is a plain
+DOM node inserted next to that row, which works only because desktop and web clients evaluate
+plugin client bundles inside the same renderer. Consequences:
+
+- **Desktop and web only.** On iOS and Android there is no DOM and the meter simply never mounts.
+- **Anchored on a host testID** (`plugin-sidebar-usage-sidebar-usage`, derived from this plugin's own
+  id). If a future Paseo release renames it, the meter stops appearing. Nothing else breaks.
+- **Fail-soft by construction.** Every step — anchor lookup, colour probing, RPC — degrades to
+  rendering nothing rather than throwing.
+- **Colours are probed, not given.** Text colour is read from the sidebar row's computed style and
+  the tone colours come from Paseo's status palette, picked by background luminance.
+- The node is `pointer-events:none`, so it never intercepts a click meant for the sidebar.
+
+Set `USAGE_SIDEBAR_METER=0`... is not implemented in 0.7 because plugins have no settings storage;
+remove the `addClientSide` line to disable it.
+
 ## Language
 
 The panel is localized into every language Paseo ships: Arabic, English, Spanish, French, Japanese,
