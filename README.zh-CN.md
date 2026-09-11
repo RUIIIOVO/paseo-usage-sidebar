@@ -11,6 +11,12 @@ Paseo 本来就知道你的套餐还剩多少，只是把它藏在设置页里�
 不需要新增凭据，不依赖厂商 CLI，也不会另起一条轮询链路：数字来自 Paseo 自己的 `provider.usage.list`
 数据，因此永远和 **设置 → Usage** 显示的一致。
 
+![侧边栏仪表与用量面板](images/overview.png)
+
+<p align="center">
+  <img src="images/sidebar-meter.png" alt="侧边栏常驻仪表" width="284">
+</p>
+
 ---
 
 ## 目录
