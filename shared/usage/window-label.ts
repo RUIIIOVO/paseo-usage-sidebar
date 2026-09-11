@@ -2,10 +2,10 @@ import type { Messages } from "../i18n/messages";
 import type { UsageWindow } from "./contract";
 
 /**
- * Paseo labels Claude's rolling windows "Session" and "Weekly · <model>", which
- * says nothing about the actual period. The daemon's window ids do, and the
- * wording follows Claude Code's `/usage` ("Current session", "Current week
- * (Opus)") rather than the daemon's bare adjectives:
+ * Paseo labels Claude's rolling windows "Session" and "Weekly · <model>". The
+ * first says nothing about the actual period and the second is not localizable,
+ * so the daemon's window ids are mapped onto this plugin's own message table
+ * instead — which also means every label follows the app's language setting:
  *
  *   five_hour            → the 5-hour rolling window (labelled "Session")
  *   weekly               → the 7-day window

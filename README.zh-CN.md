@@ -72,8 +72,9 @@ paseo plugin update usage-sidebar
 | **详情** | 服务商提供的键值行，例如 `Extra usage: Disabled`。 |
 | **状态** | 未登录的服务商不会消失，而是保留在列表里并标记 `Unavailable`，与设置页保持一致。 |
 
-窗口名称采用 Claude Code `/usage` 的措辞（`5-hour session`、`This week`、`This week (Fable)`），而不是
-守护进程那种只写 `Session` / `Weekly`、完全看不出覆盖周期的写法。
+窗口名称不是直接透传，而是过一道插件自己的文案表（`5-hour session`、`Weekly`、`Weekly (Fable)`）：
+守护进程把 5 小时窗口叫 `Session`，完全看不出覆盖周期；模型维度的窗口则写成 `Weekly · Fable`，
+且只有英文。走文案表也意味着所有窗口名称都跟随应用的语言设置。
 
 间距、字号层级、色调阈值，以及 reset / `runs out` 的文案，都取自 Paseo 自己的用量组件，因此面板读起来
 与设置页别无二致。唯一的差别是服务商品牌图标：它们来自宿主内部的图标注册表，插件无法引用，所以每行以

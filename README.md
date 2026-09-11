@@ -75,9 +75,10 @@ hairline dividers between them.
 | **Details** | Provider-supplied key/value lines such as `Extra usage: Disabled`. |
 | **Status** | Providers that are not signed in stay listed with an `Unavailable` dot rather than disappearing, so the list matches what Settings shows. |
 
-Window names follow Claude Code's `/usage` wording (`5-hour session`, `This week`,
-`This week (Fable)`) rather than the daemon's bare `Session` / `Weekly`, which say nothing about the
-period they cover.
+Window names are normalized against this plugin's own message table (`5-hour session`, `Weekly`,
+`Weekly (Fable)`) rather than passed through: the daemon calls the 5-hour window `Session`, which
+says nothing about the period it covers, and spells a model-scoped one `Weekly · Fable` in English
+only. Going through the message table means every window name follows the app's language setting.
 
 Spacing, type scale, tone thresholds, and the reset/`runs out` wording are taken from Paseo's own
 provider-usage components, so the panel reads identically to the settings screen. The one
