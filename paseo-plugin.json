@@ -1,5 +1,6 @@
 {
   "id": "usage-sidebar",
+  "description": "Provider plan usage in the Paseo sidebar: an openable panel plus an always-visible meter under the sidebar entry, read from Paseo's own usage data.",
   "requirements": {
     "paseo": ">=0.8.0"
   }
