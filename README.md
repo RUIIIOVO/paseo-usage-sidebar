@@ -12,6 +12,12 @@ actually see it.
 No new credentials, no vendor CLI, no second polling path: the numbers come from Paseo's own
 `provider.usage.list` data, so they always match what **Settings → Usage** shows.
 
+![The sidebar meter and the usage panel side by side](images/overview.png)
+
+<p align="center">
+  <img src="images/sidebar-meter.png" alt="The always-visible sidebar meter" width="284">
+</p>
+
 ---
 
 ## Contents
