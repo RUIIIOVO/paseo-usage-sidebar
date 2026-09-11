@@ -1,5 +1,5 @@
-import { messagesFor } from "./i18n.shared";
-import { resolveLocale } from "./locale.client";
+import { messagesFor } from "../../shared/i18n/messages";
+import { resolveLocale } from "../i18n/locale";
 
 /**
  * Sidebar and Command Center labels are plain strings captured when the client

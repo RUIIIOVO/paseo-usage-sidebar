@@ -1,15 +1,46 @@
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from "./i18n.shared";
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from "../../shared/i18n/messages";
 
 /**
  * Paseo does not expose its language to plugins: PluginHostProps carries theme,
  * host, and layout only, and the app's language preference lives in client-side
  * app settings rather than daemon config.
  *
- * This mirrors Paseo's own `resolveSupportedLocale` for its default "system"
- * setting, run against the same navigator the app itself reads. It matches the
- * app exactly unless the user has explicitly overridden Paseo's language to
- * something other than their system locale.
+ * It is still readable. The app persists those settings under a known key, and a
+ * plugin client bundle is evaluated inside the same renderer, so the preference
+ * can be read straight out of storage. Paseo's own resolution is
+ * `resolveSupportedLocale(settings.language, navigator.languages)`: an explicit
+ * language wins outright, and "system" (the default) falls through to the
+ * navigator. This reproduces both halves, so the panel now follows an explicit
+ * language override instead of only matching while the setting is "System".
  */
+
+/** Where Paseo's app settings live. A rename upstream degrades to the navigator path. */
+const APP_SETTINGS_KEY = "@paseo:app-settings";
+
+/**
+ * The stored preference, or null when it is "system", unreadable, or not a
+ * locale this plugin ships. Every failure mode falls through to the navigator
+ * rather than throwing: storage may be absent (native), blocked, or hold a
+ * shape from a newer app version.
+ */
+function storedLanguage(): Locale | null {
+  try {
+    if (typeof localStorage === "undefined") {
+      return null;
+    }
+    const raw = localStorage.getItem(APP_SETTINGS_KEY);
+    if (!raw) {
+      return null;
+    }
+    const language = (JSON.parse(raw) as { language?: unknown } | null)?.language;
+    if (typeof language !== "string" || language === "system") {
+      return null;
+    }
+    return isLocale(language) ? language : null;
+  } catch {
+    return null;
+  }
+}
 
 const TWO_LETTER: Record<string, Locale> = {
   ar: "ar",
@@ -58,6 +89,10 @@ export function resolveLocale(platform: "ios" | "android" | "web", override?: st
   }
   if (platform !== "web") {
     return DEFAULT_LOCALE;
+  }
+  const explicit = storedLanguage();
+  if (explicit) {
+    return explicit;
   }
   for (const tag of navigatorTags()) {
     const matched = matchTag(tag);

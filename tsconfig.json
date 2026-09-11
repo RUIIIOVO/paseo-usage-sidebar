@@ -15,7 +15,11 @@
     "allowSyntheticDefaultImports": true
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx"
+    "index.client.tsx",
+    "index.server.ts",
+    "client/**/*.ts",
+    "client/**/*.tsx",
+    "server/**/*.ts",
+    "shared/**/*.ts"
   ]
 }
