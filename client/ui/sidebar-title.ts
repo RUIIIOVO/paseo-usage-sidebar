@@ -1,13 +1,14 @@
 import { messagesFor } from "../../shared/i18n/messages";
-import { resolveLocale } from "../i18n/locale";
+import { getLocale } from "../i18n/locale";
 
 /**
- * Sidebar and Command Center labels are plain strings captured when the client
- * bundle registers its contributions. The bundle is evaluated in the Paseo
- * renderer, so the locale is resolvable at registration time — but the label is
- * fixed for that session and does not follow a later language change.
+ * Sidebar and Command Center labels are plain strings held by the host's
+ * registry, not components it re-renders, so the label is whatever the string
+ * said at registration time. This resolves it fresh on every call; following a
+ * language change is the caller's job, by re-registering with a new string
+ * (see index.client.tsx).
  */
 export function sidebarTitle(): string {
   const platform = typeof document === "undefined" ? "ios" : "web";
-  return messagesFor(resolveLocale(platform)).title;
+  return messagesFor(getLocale(platform)).title;
 }

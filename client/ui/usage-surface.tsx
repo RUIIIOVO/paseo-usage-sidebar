@@ -2,7 +2,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc, type PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -25,7 +25,7 @@ import {
   windowUsedPct,
 } from "../../shared/usage/format";
 import { isRtl, messagesFor, type Locale, type Messages } from "../../shared/i18n/messages";
-import { resolveLocale } from "../i18n/locale";
+import { getLocale, subscribeLocale } from "../i18n/locale";
 import { publishSelection } from "../selection/store";
 import {
   defaultKeys,
@@ -752,8 +752,24 @@ function ProviderBlock({
   );
 }
 
+/**
+ * Paseo's language setting, as a subscription rather than a one-time read: the
+ * panel stays open across a language change, so resolving once at mount left it
+ * in the old language until it was closed and reopened.
+ */
+function useLocale(platform: "ios" | "android" | "web"): Locale {
+  const subscribe = useCallback(
+    (onChange: () => void) => (platform === "web" ? subscribeLocale(onChange) : () => {}),
+    [platform],
+  );
+  const snapshot = useCallback(() => getLocale(platform), [platform]);
+  // Server snapshot: the plugin host renders on the client only, but React
+  // requires the third argument whenever a bundle may be hydrated.
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
+}
+
 export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
-  const locale = useMemo(() => resolveLocale(layout.platform), [layout.platform]);
+  const locale = useLocale(layout.platform);
   const messages = useMemo(() => messagesFor(locale), [locale]);
   const styles = useStyles(theme, layout.compact, isRtl(locale));
   const fetchUsage = useRpc(listUsage);

@@ -102,3 +102,81 @@ export function resolveLocale(platform: "ios" | "android" | "web", override?: st
   }
   return DEFAULT_LOCALE;
 }
+
+/**
+ * Language changes are not announced.
+ *
+ * Paseo writes the new preference into `@paseo:app-settings` and re-renders its
+ * own tree from React state; nothing crosses into plugin land. `storage` only
+ * fires for *other* documents, so a same-window switch — which is the only kind
+ * that happens here — never emits an event. The value is therefore polled, and
+ * the poll is the whole mechanism: one `localStorage.getItem` plus a `JSON.parse`
+ * of a small object, at 1 Hz, only while something is actually subscribed.
+ */
+const LOCALE_POLL_MS = 1_000;
+
+let current: Locale | null = null;
+const listeners = new Set<(locale: Locale) => void>();
+let timer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * The live locale, memoised so repeated reads (and `useSyncExternalStore`'s
+ * snapshot, which demands a stable identity between changes) do not re-parse
+ * storage on every call.
+ */
+export function getLocale(platform: "ios" | "android" | "web" = "web"): Locale {
+  if (platform !== "web") {
+    return DEFAULT_LOCALE;
+  }
+  if (current === null) {
+    current = resolveLocale("web");
+  }
+  return current;
+}
+
+function check(): void {
+  const next = resolveLocale("web");
+  if (next === current) {
+    return;
+  }
+  current = next;
+  for (const listener of listeners) {
+    listener(next);
+  }
+}
+
+/**
+ * Calls back whenever the resolved locale changes. Returns an unsubscribe; the
+ * poll stops with the last subscriber.
+ *
+ * On iOS and Android there is no storage and no navigator to change, so this is
+ * a no-op that never fires.
+ */
+export function subscribeLocale(listener: (locale: Locale) => void): () => void {
+  if (typeof window === "undefined" || typeof localStorage === "undefined") {
+    return () => {};
+  }
+  if (listeners.size === 0) {
+    // The cache is only kept current by the poll, so it is stale by definition
+    // after an idle gap. Re-resolving before the first listener arrives means
+    // the snapshot it reads immediately after this call is already right,
+    // instead of being a poll-tick behind. Safe to write without notifying:
+    // there is nobody to notify.
+    current = resolveLocale("web");
+  }
+  listeners.add(listener);
+  if (timer === null) {
+    timer = setInterval(check, LOCALE_POLL_MS);
+    // Cross-document writes still arrive as events; taking them too just makes
+    // the other-window case instant instead of up to a second late.
+    window.addEventListener("storage", check);
+  }
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0 && timer !== null) {
+      clearInterval(timer);
+      timer = null;
+      window.removeEventListener("storage", check);
+    }
+  };
+}
