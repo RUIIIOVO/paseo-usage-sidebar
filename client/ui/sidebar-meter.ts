@@ -1,7 +1,7 @@
 import type { PluginCleanup } from "@getpaseo/plugin";
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { messagesFor, type Locale, type Messages } from "../../shared/i18n/messages";
-import { resolveLocale } from "../i18n/locale";
+import { getLocale, subscribeLocale } from "../i18n/locale";
 import { publishSelection, subscribeSelection } from "../selection/store";
 import { pinnedRows, readSelection, type Selection } from "../../shared/selection/contract";
 import {
@@ -235,8 +235,12 @@ export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
     return () => {};
   }
 
-  const locale = resolveLocale("web");
-  const messages: Messages = messagesFor(locale);
+  // Not captured: Paseo's language setting can change while the meter is
+  // mounted, and the meter repaints from these on every poll and every pin
+  // change, so a stale capture would pin the whole block to the language that
+  // happened to be active when the plugin loaded.
+  let locale: Locale = getLocale("web");
+  let messages: Messages = messagesFor(locale);
   let node: HTMLElement | null = null;
   let snapshot: UsageSnapshot | null = null;
   let selection: Selection = { keys: [], configured: false };
@@ -399,6 +403,16 @@ export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
     paint();
   });
 
+  // Window labels, countdowns, and the percentage's number formatting all come
+  // from these, so a language change has to rebuild the rows, not just repaint.
+  const unsubscribeLocale = subscribeLocale((next) => {
+    locale = next;
+    messages = messagesFor(next);
+    recompute();
+    ensureMounted();
+    paint();
+  });
+
   async function loadSelection(): Promise<void> {
     try {
       publishSelection((await client.rpc(readSelection, {})) as Selection);
@@ -430,6 +444,7 @@ export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
     clearInterval(timer);
     clearInterval(appearanceTimer);
     unsubscribe();
+    unsubscribeLocale();
     media?.removeEventListener("change", onSchemeChange);
     observer.disconnect();
     node?.remove();
