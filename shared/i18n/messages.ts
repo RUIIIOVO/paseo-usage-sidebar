@@ -38,7 +38,7 @@ export type Messages = {
   windowWeekly: string;
   windowDaily: string;
   windowMonthly: string;
-  /** A window scoped to one model, e.g. `This week (Fable)`. */
+  /** A window scoped to one model, e.g. `Weekly (Fable)`. */
   windowScoped: (base: string, scope: string) => string;
   showInSidebar: string;
   hideFromSidebar: string;
@@ -72,7 +72,7 @@ const en: Messages = {
   updated: (relative) => `Updated ${relative}`,
   balanceLeft: (amount) => `${amount} left`,
   windowFiveHour: "5-hour session",
-  windowWeekly: "This week",
+  windowWeekly: "Weekly",
   windowDaily: "Today",
   windowMonthly: "This month",
   windowScoped: (base, scope) => `${base} (${scope})`,
