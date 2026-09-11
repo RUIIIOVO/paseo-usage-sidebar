@@ -1,5 +1,5 @@
-import type { Locale, Messages } from "./i18n.shared";
-import type { UsageBalance, UsageTone, UsageWindow } from "./usage.shared";
+import type { Locale, Messages } from "../i18n/messages";
+import type { UsageBalance, UsageTone, UsageWindow } from "./contract";
 
 /**
  * Value shapes mirror Paseo's own provider-usage helpers (percent rounding, tone
@@ -17,21 +17,65 @@ export function formatPct(value: number, locale: Locale): string {
   );
 }
 
-/** Compact `2d` / `3h` / `5m`, localized. Returns null for a non-finite instant. */
+/**
+ * Two-unit compact duration (`2d 3h`, `3h 25m`, `40m`), localized.
+ *
+ * Claude Code and Codex both spell the remainder out to a second unit — `3h 25m`
+ * rather than `3h` — because a bare leading unit hides up to an hour of headroom
+ * right when the window is about to matter. Returns null for a non-finite instant.
+ */
 function compactDuration(deltaMs: number, messages: Messages): string | null {
   if (!Number.isFinite(deltaMs)) {
     return null;
   }
-  const minutes = Math.floor(deltaMs / 60_000);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
+  const totalMinutes = Math.floor(deltaMs / 60_000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor(totalMinutes / 60) % 24;
+  const minutes = totalMinutes % 60;
   if (days > 0) {
-    return messages.days(days);
+    return hours > 0 ? `${messages.days(days)} ${messages.hours(hours)}` : messages.days(days);
   }
   if (hours > 0) {
-    return messages.hours(hours);
+    return minutes > 0 ? `${messages.hours(hours)} ${messages.minutes(minutes)}` : messages.hours(hours);
   }
   return messages.minutes(minutes);
+}
+
+const DAY_MS = 24 * 60 * 60_000;
+
+/** Remaining time until an instant, or null when it is absent, unparseable, or past. */
+function remainingMs(iso: string | null | undefined): number | null {
+  if (!iso) {
+    return null;
+  }
+  const delta = new Date(iso).getTime() - Date.now();
+  return Number.isFinite(delta) && delta > 0 ? delta : null;
+}
+
+/** Within a day, the wall-clock time; beyond it, the date too. Mirrors Claude Code's `/usage`. */
+export function formatResetClock(
+  iso: string | null | undefined,
+  locale: Locale,
+  messages: Messages,
+): string | null {
+  if (!iso) {
+    return null;
+  }
+  const at = new Date(iso);
+  const time = at.getTime();
+  const remaining = time - Date.now();
+  // A reset that already came due is announced as "resetting now"; a stale
+  // wall-clock time next to that would read as a contradiction.
+  if (!Number.isFinite(time) || remaining <= 0) {
+    return null;
+  }
+  const withinADay = remaining < DAY_MS;
+  const clock = new Intl.DateTimeFormat(locale, {
+    hour: "numeric",
+    minute: "2-digit",
+    ...(withinADay ? {} : { month: "short", day: "numeric" }),
+  }).format(at);
+  return messages.resetsAt(clock);
 }
 
 export function formatResetLabel(iso: string | null | undefined, messages: Messages): string | null {
@@ -47,6 +91,40 @@ export function formatResetLabel(iso: string | null | undefined, messages: Messa
   }
   const duration = compactDuration(deltaMs, messages);
   return duration ? messages.resets(duration) : null;
+}
+
+/**
+ * The reset a row leads with: a countdown while the window still resets today,
+ * the wall-clock instant once it is a day or more out.
+ *
+ * Claude Code makes the same split — its session bar prints `Resets 3pm` while
+ * the weekly bars print `Resets Nov 12, 3pm` — because the two horizons answer
+ * different questions. Under a day, "how long do I have" is the actionable
+ * number; past that, `1d` is too coarse to plan around and a date is not.
+ */
+export function formatResetPrimary(
+  iso: string | null | undefined,
+  locale: Locale,
+  messages: Messages,
+): string | null {
+  const remaining = remainingMs(iso);
+  if (remaining == null) {
+    return formatResetLabel(iso, messages);
+  }
+  return remaining >= DAY_MS ? formatResetClock(iso, locale, messages) : formatResetLabel(iso, messages);
+}
+
+/** The other half of the pair, for a tooltip: whichever form the row did not print. */
+export function formatResetSecondary(
+  iso: string | null | undefined,
+  locale: Locale,
+  messages: Messages,
+): string | null {
+  const remaining = remainingMs(iso);
+  if (remaining == null) {
+    return null;
+  }
+  return remaining >= DAY_MS ? formatResetLabel(iso, messages) : formatResetClock(iso, locale, messages);
 }
 
 export function formatRunsOutLabel(iso: string | null | undefined, messages: Messages): string | null {
