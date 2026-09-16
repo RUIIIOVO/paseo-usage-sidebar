@@ -238,6 +238,14 @@ paseo plugin logs usage-sidebar
 (`@getpaseo/plugin`, `react`, `react-native`, `@tanstack/react-query`, `zod`), so installing the
 plugin never runs a package manager.
 
+It also points `core.hooksPath` at `.githooks/`, whose `commit-msg` hook checks the message against
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): a type from `feat`, `fix`,
+`docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, an optional `(scope)`,
+an optional `!`, then a lower-case subject with no trailing period. A `!` must come with a
+`BREAKING CHANGE:` footer and vice versa. It is a POSIX shell script with no dependencies — run
+`git config core.hooksPath .githooks` to install it without `npm install`, and
+`git commit --no-verify` to skip it.
+
 Issues and pull requests are welcome. Please run `npm run typecheck` before opening one, and keep
 new modules inside the `client/` / `server/` / `shared/` layout above.
 

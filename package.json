@@ -9,7 +9,8 @@
     "url": "https://github.com/RUIIIOVO/paseo-usage-sidebar.git"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@getpaseo/plugin": "0.8.0",

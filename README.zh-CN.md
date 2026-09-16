@@ -215,6 +215,13 @@ paseo plugin logs usage-sidebar
 `npm install` 只安装类型检查期的依赖。所有运行时模块（`@getpaseo/plugin`、`react`、`react-native`、
 `@tanstack/react-query`、`zod`）都由 Paseo 提供，所以安装插件不会触发任何包管理器。
 
+它同时会把 `core.hooksPath` 指向 `.githooks/`，其中的 `commit-msg` 钩子按
+[Conventional Commits](https://www.conventionalcommits.org/zh-hans/v1.0.0/) 校验提交信息：类型取自
+`feat`、`fix`、`docs`、`style`、`refactor`、`perf`、`test`、`build`、`ci`、`chore`、`revert`，可选
+`(scope)`，可选 `!`，然后是小写开头、不以句号结尾的描述。标了 `!` 就必须有 `BREAKING CHANGE:`
+脚注，反之亦然。它是一个无任何依赖的 POSIX shell 脚本——不跑 `npm install` 的话，执行
+`git config core.hooksPath .githooks` 即可启用；`git commit --no-verify` 可以跳过它。
+
 欢迎提 issue 和 PR。提交前请先跑 `npm run typecheck`，并把新模块放在上面的 `client/` / `server/` /
 `shared/` 布局之内。
 

@@ -1,0 +1,116 @@
+#!/bin/sh
+#
+# Conventional Commits check.
+#
+# Deliberately a POSIX shell script rather than commitlint: the only reason this
+# repo has a package.json is typecheck-time types, and pulling in a linter, its
+# config package, and husky to police one line of text would be the largest
+# dependency in the tree by an order of magnitude.
+#
+# Installed by `npm install` (package.json's prepare script points
+# core.hooksPath at this directory). To wire it up by hand:
+#
+#     git config core.hooksPath .githooks
+#
+# To bypass it for one commit: git commit --no-verify
+
+set -eu
+
+# Not cosmetic. Under a locale whose collation is case-insensitive (en_US.UTF-8
+# on macOS), the glob range [A-Z] also matches a-z, so the capitalised-subject
+# check below rejected every commit in this repo's own history.
+LC_ALL=C
+export LC_ALL
+
+MSG_FILE="$1"
+TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
+MAX_HEADER=100
+MAX_LINE=100
+
+# Strip comments and the diff `git commit -v` appends, then take the header.
+BODY_TEXT=$(sed -e '/^#/d' -e '/^diff --git /,$d' "$MSG_FILE")
+HEADER=$(printf '%s\n' "$BODY_TEXT" | sed -n '1p')
+
+fail() {
+	printf '\n  \033[31m✗ %s\033[0m\n' "$1" >&2
+	shift
+	for line in "$@"; do
+		printf '    %s\n' "$line" >&2
+	done
+	printf '\n    header: \033[33m%s\033[0m\n' "$HEADER" >&2
+	printf '    format: <type>[(scope)][!]: <subject>\n' >&2
+	printf '    types:  %s\n' "$(printf '%s' "$TYPES" | tr '|' ' ')" >&2
+	printf '\n    Bypass with --no-verify if you really mean it.\n\n' >&2
+	exit 1
+}
+
+# Git's own generated headers. Nothing to check, and rewriting them would break
+# the tooling that reads them back.
+case "$HEADER" in
+	"Merge "*|"Revert "*|"fixup! "*|"squash! "*|"Reapply "*) exit 0 ;;
+esac
+
+[ -n "$HEADER" ] || fail "Empty commit message."
+
+printf '%s' "$HEADER" | grep -Eq "^($TYPES)(\([a-z0-9._-]+\))?!?: .+" ||
+	fail "Header is not a Conventional Commit." \
+		"It must start with a type, an optional (scope), an optional ! for a" \
+		"breaking change, then ': ' and a subject."
+
+[ "${#HEADER}" -le "$MAX_HEADER" ] ||
+	fail "Header is ${#HEADER} characters; the limit is $MAX_HEADER."
+
+SUBJECT=${HEADER#*: }
+
+case "$SUBJECT" in
+	*.) fail "Subject ends with a period." ;;
+esac
+
+# Lower-case opener, so subjects read as one continuous sentence with the type
+# ("feat(meter): follow every built-in theme"). Proper nouns belong later in the
+# line, where they are not competing with the type for the reader's eye.
+case "$SUBJECT" in
+	[A-Z]*) fail "Subject starts with a capital: '$SUBJECT'." \
+		"Start it lower-case — the type already opens the line." ;;
+esac
+
+# A `!` promises a BREAKING CHANGE footer, and a footer promises the `!`. One
+# without the other means a consumer reading only subjects, or only footers,
+# misses the break.
+HAS_BANG=$(printf '%s' "$HEADER" | grep -Eq "^($TYPES)(\([a-z0-9._-]+\))?!:" && echo yes || echo no)
+HAS_FOOTER=$(printf '%s\n' "$BODY_TEXT" | grep -Eq "^BREAKING[ -]CHANGE: " && echo yes || echo no)
+
+[ "$HAS_BANG" = no ] || [ "$HAS_FOOTER" = yes ] ||
+	fail "Header is marked '!' but there is no BREAKING CHANGE footer." \
+		"Add a 'BREAKING CHANGE: <what breaks, and what to do>' paragraph."
+
+[ "$HAS_FOOTER" = no ] || [ "$HAS_BANG" = yes ] ||
+	fail "There is a BREAKING CHANGE footer but the header is not marked '!'." \
+		"Write the type as e.g. 'feat(meter)!: …'."
+
+# Line 2 must be blank. Without it Git folds the first body line into the
+# subject everywhere a one-line summary is shown.
+SECOND=$(printf '%s\n' "$BODY_TEXT" | sed -n '2p')
+[ -z "$SECOND" ] ||
+	fail "Line 2 must be blank when there is a body."
+
+# Long body lines. A line carrying a token longer than TOKEN_SLACK is exempt:
+# URLs, paths, and stack frames cannot be wrapped, and a rule that demands the
+# impossible just teaches people to reach for --no-verify.
+LONG=$(printf '%s\n' "$BODY_TEXT" | tail -n +3 |
+	awk -v max="$MAX_LINE" -v slack=45 '
+		length($0) <= max { next }
+		{
+			longest = 0
+			for (i = 1; i <= NF; i++)
+				if (length($i) > longest) longest = length($i)
+			if (longest <= slack) print NR + 2 ": " $0
+		}' | head -3)
+[ -z "$LONG" ] || {
+	printf '\n  \033[31m✗ Body lines over %s characters:\033[0m\n' "$MAX_LINE" >&2
+	printf '%s\n' "$LONG" | sed 's/^/    /' >&2
+	printf '\n    Bypass with --no-verify if you really mean it.\n\n' >&2
+	exit 1
+}
+
+exit 0
