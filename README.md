@@ -2,38 +2,15 @@
 
 **English** · [简体中文](./README.zh-CN.md)
 
-A [Paseo](https://paseo.sh) plugin that puts provider plan usage in the sidebar — as a panel you
-can open, and as an always-visible meter under the sidebar entry.
+Provider plan usage in the [Paseo](https://paseo.sh) sidebar — as a panel you can open, and as an
+always-visible meter under the sidebar entry.
 
-Paseo already knows how much of your plan is left. It just keeps that behind a settings screen and
-a hover tooltip on the composer's context meter. This plugin surfaces the same data where you can
-actually see it.
+Paseo already tracks how much of your plan is left; it just keeps that behind a settings screen and
+a hover tooltip on the composer's context meter. This plugin puts the same numbers where you see
+them without going to look. It adds no credentials, no vendor CLI, and no second polling path: the
+data is Paseo's own `provider.usage.list`, so it always agrees with **Settings → Usage**.
 
-No new credentials, no vendor CLI, no second polling path: the numbers come from Paseo's own
-`provider.usage.list` data, so they always match what **Settings → Usage** shows.
-
-![The sidebar meter and the usage panel side by side](images/overview.png)
-
----
-
-## Contents
-
-- [Install](#install)
-- [Features](#features)
-  - [The usage panel](#the-usage-panel)
-  - [The sidebar meter](#the-sidebar-meter)
-  - [Colour](#colour)
-  - [Pinning and ordering](#pinning-and-ordering)
-  - [Localization](#localization)
-- [Configuration](#configuration)
-- [How it reads usage](#how-it-reads-usage)
-- [Security](#security)
-- [Limitations](#limitations)
-- [Project structure](#project-structure)
-- [Development](#development)
-- [License](#license)
-
----
+![The sidebar meter and the usage panel](images/overview.png)
 
 ## Install
 
@@ -43,230 +20,164 @@ Requires **Paseo 0.8.0 or later**.
 paseo plugin add RUIIIOVO/paseo-usage-sidebar
 ```
 
-Enable plugins first under **Settings → Plugins → Enable plugins** if you have not already. Then
-pick **Usage** in the sidebar, or run **Open plan usage** from the Command Center
-(`Ctrl`/`Cmd` + `K`).
+Turn plugins on under **Settings → Plugins → Enable plugins**, then pick **Plan usage** in the
+sidebar or run **Open plan usage** from the Command Center (`Cmd`/`Ctrl` + `K`). Update later with
+`paseo plugin update usage-sidebar`.
 
-Update later with:
+> The manifest declares `requirements.paseo: ">=0.8.0"`. Paseo 0.7 and earlier cannot load this
+> plugin — it uses the 0.8 runtime-entry layout.
 
-```bash
-paseo plugin update usage-sidebar
-```
+## The usage panel
 
-> The floor is declared as `requirements.paseo: ">=0.8.0"` in `paseo-plugin.json`. Paseo 0.7 and
-> earlier cannot load this plugin: it uses the 0.8 runtime-entry layout.
+Same layout as **Settings → Usage**: one bordered card, one row per provider.
 
----
-
-## Features
-
-### The usage panel
-
-The surface reproduces the layout of **Settings → Usage**: one bordered card, one row per provider,
-hairline dividers between them.
-
-| Row type | What it shows |
+| Row | Shows |
 | --- | --- |
-| **Quota windows** | Session, weekly, and model-scoped windows as `57% · resets in 2h 15m` (or `57% · resets at Nov 12, 10:00` once the reset is more than a day out), with a zero-baseline bar. |
-| **Balances** | Money, credits, requests, or tokens, against a ceiling where one exists. |
-| **Details** | Provider-supplied key/value lines such as `Extra usage: Disabled`. |
-| **Status** | Providers that are not signed in stay listed with an `Unavailable` dot rather than disappearing, so the list matches what Settings shows. |
+| **Quota window** | `57% · resets in 2h 15m`, or `57% · resets at Nov 12, 10:00` once the reset is more than a day out. |
+| **Balance** | Money, credits, requests, or tokens — against a ceiling when the provider reports one. |
+| **Detail** | Provider-supplied key/value lines such as `Extra usage: Disabled`. |
+| **Status** | Providers you are not signed into stay listed with an `Unavailable` dot instead of vanishing. |
 
-Window names are normalized against this plugin's own message table (`5-hour session`, `Weekly`,
-`Weekly (Fable)`) rather than passed through: the daemon calls the 5-hour window `Session`, which
-says nothing about the period it covers, and spells a model-scoped one `Weekly · Fable` in English
-only. Going through the message table means every window name follows the app's language setting.
+It refreshes every 60 seconds, and on demand from **Refresh**.
 
-Spacing, type scale, and the reset/`runs out` wording are taken from Paseo's own provider-usage
-components, so the panel reads like the settings screen. Two things differ. Provider brand logos
-come from a host-internal icon registry that plugins cannot import, so rows lead with the provider
-name instead. And the bars use this plugin's own colour ramp rather than the host's status tokens —
-see [Colour](#colour).
+Two things differ from the settings screen. Rows lead with the provider's name rather than its logo,
+because brand icons live in a host-internal registry plugins cannot import. And the bars use this
+plugin's own [colour ramp](#colour) rather than the host's status tokens.
 
-The surface refreshes every 60 seconds and on demand from **Refresh**.
+Window names are rebuilt from the daemon's ids instead of passed through, so they follow your
+language and say what period they cover: the daemon calls the 5-hour window `Session`, and spells
+the model-scoped one `Weekly · Fable` in English only.
 
 ![The usage panel](images/usage-panel.png)
 
-### The sidebar meter
+## The sidebar meter
 
 *Desktop and web only.*
 
-Under the sidebar entry, the plugin renders a compact always-visible meter: one row per pinned quota
-window — label, percentage, a thin bar, and the countdown to that window's reset. It refreshes on
-the same 60-second cycle and needs no click.
+One row per pinned window, directly under the sidebar entry: label, percentage, a thin bar, and the
+reset. Same 60-second cycle, no click needed.
 
 <p align="center">
   <img src="images/sidebar-meter.png" alt="The sidebar meter on the Light theme" width="320">
   <img src="images/sidebar-meter-dark.png" alt="The sidebar meter on the Dark theme" width="320">
 </p>
 
-The reset is the point of the row. A percentage on its own cannot be acted on — 90% used is fine
-with a reset an hour out and a problem with three days to go — so each row carries it underneath,
-or `runs out in 40m` in the danger tone when the daemon projects the window will be exhausted
-before it resets.
+**The reset is the point of the row.** A percentage on its own cannot be acted on — 90% used is fine
+when it resets in an hour and a problem when it resets in three days. When the daemon projects a
+window will be exhausted before it resets, the row reads `runs out in 40m` in red instead.
 
-Which form the row leads with follows Claude Code's `/usage`, which prints `Resets 3pm` on the
-session bar and `Resets Nov 12, 3pm` on the weekly ones:
+Which form leads follows Claude Code's `/usage`. Under a day, "how long do I have" is the actionable
+number; past that, a bare `1d` is too coarse to plan around and a date is not. Either way the other
+form is one hover away.
 
 | Reset is | Row shows | Hover shows |
 | --- | --- | --- |
 | under a day out | `resets in 3h 25m` | `resets at 1:35 PM` |
 | a day or more out | `resets at Nov 12, 10:00` | `resets in 1d 2h` |
 
-Under a day, "how long do I have" is the actionable number. Past that, a bare `1d` is too coarse to
-plan around and a date is not — and either way the other form is one hover away.
-
 <details>
-<summary><strong>Why this is an unsupported escape hatch</strong> (read before relying on it)</summary>
+<summary><strong>The meter is an unsupported escape hatch</strong> — read before relying on it</summary>
 
-Paseo has no sidebar-widget contribution. A sidebar item is `{ id, title, icon, surface }` and the
-row is rendered by the host, so the meter is a plain DOM node inserted next to that row — which
-works only because desktop and web clients evaluate plugin client bundles inside the same renderer.
-Consequences:
+Paseo has no sidebar-widget extension point. A sidebar item is `{ id, title, icon, surface }` and
+the host renders the row, so the meter is a plain DOM node inserted next to it — which works only
+because desktop and web clients evaluate plugin client bundles in the same renderer. Consequences:
 
-- **Desktop and web only.** On iOS and Android there is no DOM and the meter simply never mounts.
+- **Desktop and web only.** iOS and Android have no DOM; the meter never mounts.
 - **Anchored on a host testID** (`plugin-sidebar-usage-sidebar-usage`, derived from this plugin's
   own id). If a future Paseo release renames it, the meter stops appearing. Nothing else breaks.
-- **Fail-soft by construction.** Every step — anchor lookup, colour probing, RPC — degrades to
-  rendering nothing rather than throwing.
-- **Colours are measured, not guessed.** Theme colors reach plugins only as props inside a surface,
-  and this meter is a DOM node outside React, so it identifies the active theme from what is
-  actually painted: the sidebar background is matched against Paseo's seven built-in themes (Light,
-  Dark, Zinc, Midnight, Claude, Ghostty, Pure black), each of which paints a distinct one, and the
-  meter then uses that theme's own track and muted-foreground tokens for its chrome. Bar fills come
-  from the plugin's own ramp instead (see [Colour](#colour)); the probe only decides which of its
-  two variants to use. An unrecognized theme — a plugin-contributed one — falls back to the row's
-  rendered text colour with a light or dark palette chosen by luminance. Colours are re-probed every two seconds, so switching themes updates
-  the meter without a reload. Row-sized painted ancestors are skipped during the probe: while the
-  usage panel is open Paseo paints a selection tint on its own sidebar row, and reading that tint
-  instead of the sidebar identified the Light theme and turned the meter dark-on-dark.
+- **Fail-soft throughout.** Anchor lookup, colour probing, and RPC each degrade to rendering
+  nothing rather than throwing.
+- **Colours are measured, not guessed.** Theme colours reach plugins only as surface props, and
+  this node lives outside React, so it reads the theme off what is actually painted: the sidebar
+  background is matched against the seven built-in themes, each of which paints a distinct one, and
+  that theme's track and muted-foreground tokens paint the meter's chrome. Re-probed every two
+  seconds, so a theme switch lands without a reload. Row-sized painted ancestors are skipped —
+  Paseo tints its own sidebar row while the panel is open, and reading that tint identified the
+  Light theme and turned the meter dark-on-dark.
 - **Never steals a click.** The node is `pointer-events:none`.
 
-To disable the meter, remove the `startSidebarMeter(client)` call from `index.client.tsx`.
-There is no settings toggle yet.
+To disable it, remove the `startSidebarMeter(client)` call from `index.client.tsx`. There is no
+settings toggle yet.
 
 </details>
 
-### Colour
+## Colour
 
-Bars run blue → orange → red. Both surfaces paint from one table (`shared/usage/palette.ts`),
-because they had drifted: the meter carried its own colour literals while the panel derived most of
-its fills from the host's `theme.colors.status*` tokens, so a change to either silently disagreed
-with the other.
-
-| Fill | When | |
+| Fill | When | Means |
 | --- | --- | --- |
 | **Blue** | under 70% used | Nothing to act on. |
 | **Orange** | 70–90% | Worth knowing before you plan the next hour. |
-| **Red** | over 90%, or any window projected to run out before it resets | Act now or wait for the reset. |
+| **Red** | over 90%, or projected to run out before it resets | Act now, or wait for the reset. |
 | **Grey** | no percentage reported | Not a low reading — a missing one. |
 
-Green is deliberately absent. It reads as "good" and spends the eye's only strong signal on the
-state that needs no attention; blue is the neutral "nothing to do here" colour, which leaves warm
-hues to mean exactly one thing and makes the orange→red step the only colour change in the block.
+Green is deliberately absent. It reads as "good", which spends the eye's only strong signal on the
+state that needs no attention. Blue is the neutral "nothing to do here", so warm hues mean exactly
+one thing and orange→red is the block's only colour change.
 
-The tone a bar paints is the **more severe** of what the provider reported and what the percentage
-implies. Taking the provider's blindly lets its thresholds decide where this ramp steps, and leaves
-a provider that reports no tone at all painting grey; deriving locally and ignoring the provider
-throws away what a percentage cannot express — a window projected to run out early is red at 40%.
+A bar takes the **more severe** of the provider's reported tone and the one its percentage implies.
+Trusting the provider alone lets its thresholds decide where this ramp steps, and paints grey for a
+provider that reports no tone; deriving locally alone discards what a percentage cannot express — a
+window projected to run out early is red at 40%.
 
-Host status tokens are not used for fills. They are tuned for text, where a light background demands
-dark ink: on the Light theme Paseo's `statusWarning` is a dark amber that read as brown at 4px, and
-its `statusSuccess` read as near-black. Orange is the one entry that trades contrast for hue — on
-white, brightness and contrast move in opposite directions, and an orange dark enough to clear 3:1
-on the track is back to reading as amber-brown, so the light value sits at 2.8 on the track and 3.6
-on the page behind it. Blue and red pay no such tax and clear 3:1 on both.
+Both surfaces read one table, `shared/usage/palette.ts`. Host `theme.colors.status*` tokens are not
+used for fills: they are tuned for text, so on the Light theme `statusWarning` is a dark amber that
+reads as brown at 4px.
 
-### Pinning and ordering
+## Pinning and ordering
 
-Every quota window in the panel carries a **+ / −** button that pins it to — or hides it from — the
-sidebar meter. Pinned rows appear in a **Sidebar order** block at the top of the panel, where they
-can be dragged (or moved with the arrow buttons) into the exact order the meter paints them.
+Every quota window in the panel carries a **+ / −** button that pins it to, or hides it from, the
+meter. Pinned rows appear in a **Sidebar order** block at the top of the panel, where a drag — or
+the arrow buttons — sets the exact order the meter paints them in.
 
 - Until you pin anything, the meter shows every window of the first provider that reports usage.
-- A row is identified by `providerId:windowId`, not by index, so a provider that reorders its
-  windows — or temporarily drops one — never silently repoints your selection.
-- Toggling a pin updates the meter immediately rather than on its next poll: the panel and the
-  meter share one in-renderer store.
-- The pin set is persisted to `$XDG_STATE_HOME/paseo-usage-sidebar/selection.json` (default
-  `~/.local/state/…`) and written atomically. It holds provider and window **ids only** — no
-  tokens, no usage numbers, nothing account-identifying.
+- Rows are identified by `providerId:windowId`, not by index, so a provider that reorders or
+  temporarily drops a window never silently repoints your selection.
+- A pin takes effect immediately rather than on the next poll — the panel and the meter share one
+  in-renderer store.
+- The pin set is written atomically to `$XDG_STATE_HOME/paseo-usage-sidebar/selection.json`
+  (default `~/.local/state/…`). It holds provider and window **ids only**: no tokens, no usage
+  numbers, nothing account-identifying.
 
-### Localization
+## Localization
 
-The panel is localized into every language Paseo ships: Arabic, English, Spanish, French, Japanese,
-Korean, Brazilian Portuguese, Russian, and Simplified Chinese. Arabic renders right-to-left.
+The panel is localized into every language Paseo ships: Arabic (right-to-left), English, Spanish,
+French, Japanese, Korean, Brazilian Portuguese, Russian, and Simplified Chinese. Durations are
+two-unit (`2d 3h`, `3h 25m`, `40m`), and clock times come from `Intl.DateTimeFormat`, so they follow
+the locale's 12/24-hour convention.
 
-Paseo does not pass its language to plugins — `PluginHostProps` carries theme, host, and layout
-only, and the language preference lives in client-side app settings rather than daemon config. The
-plugin therefore reproduces Paseo's own `resolveSupportedLocale` algorithm against the same
-`navigator.languages` the app reads, which matches Paseo exactly while its language is set to
-**System** (the default). If you override Paseo's language to something other than your system
-locale, the panel follows the system locale instead.
+Paseo does not pass its language to plugins, so the plugin reproduces Paseo's own
+`resolveSupportedLocale` against the same `navigator.languages` the app reads. That matches Paseo
+exactly while its language is **System** (the default); set it to anything else and the panel
+follows your system locale instead.
 
-Two notes:
+Only strings the plugin owns are localized — window names, resets, durations, and its own copy.
+Provider strings (`Extra usage`, plan labels, and the model name inside a scoped window) are shown
+verbatim, because they are the provider's own wording. Paseo's usage copy is itself hardcoded
+English, so on a non-English install this panel is localized where **Settings → Usage** is not.
 
-- Paseo's own usage copy is hardcoded English (`"Plan usage"`, `"Refresh"`, …), so on a non-English
-  install this panel is localized where **Settings → Usage** is not.
-- Window names are re-derived from the daemon's window ids (`five_hour`, `weekly`,
-  `weekly_model_fable`) and localized; only the model name inside a scoped window is kept verbatim,
-  because it is the provider's own name for it. Other provider-supplied strings (`Extra usage`,
-  plan labels) are still shown verbatim.
+## Where the numbers come from
 
-Durations are two-unit (`2d 3h`, `3h 25m`, `40m`) and clock times come from `Intl.DateTimeFormat`,
-so they follow the locale's 12/24-hour convention rather than a hardcoded one.
+`server/usage/read.ts` calls `paseo.providers.listUsage()` from the plugin SDK and validates the
+response against the plugin's own Zod mirror of `provider.usage.list`, so a provider reporting a
+window shape this plugin does not model degrades to a missing field rather than crashing the
+surface. Each provider row's footer shows that provider's own source label and how long ago the
+numbers were fetched.
 
----
-
-## Configuration
-
-| Variable | Default | Effect |
-| --- | --- | --- |
-| `XDG_STATE_HOME` | `~/.local/state` | Where the pin set is stored. |
-
----
-
-## How it reads usage
-
-The plugin reads provider usage through `paseo.providers.listUsage()` from the plugin SDK, in
-`server/usage/read.ts`. The daemon's payload is validated against the plugin's own Zod mirror of
-`provider.usage.list`, so a provider reporting a window shape this plugin does not model degrades to
-a missing field rather than crashing the surface.
-
-Up to 0.7 this file also carried a fallback that opened its own WebSocket to the daemon and replayed
-the `provider.usage.list` handshake by hand, because that SDK release exposed no usage API. The
-`>=0.8.0` requirement makes it unreachable, so it is gone along with the `PASEO_USAGE_SIDEBAR_HOST`
-override.
-
-Each provider row's footer shows the provider's own source label and how long ago the numbers were
-fetched.
+Percentages, and their refresh cadence, are the daemon's. The plugin re-derives and estimates
+nothing, so a provider that rate-limits its own usage endpoint stays stale until Paseo refreshes it.
 
 ## Security
 
-Read this before trusting the plugin — Paseo plugins are unsandboxed by design.
+Paseo plugins are unsandboxed by design, so this is worth reading before you trust one.
 
-- **Server code** runs in a daemon subprocess. It calls one SDK method, `paseo.providers.listUsage()`,
-  and performs no other daemon operation. It opens no sockets of its own.
-- **No credentials are read, stored, or transmitted.** The plugin never touches `~/.claude`,
+- **Server code** runs in a daemon subprocess and calls exactly one SDK method,
+  `paseo.providers.listUsage()`. No other daemon operation, no sockets of its own.
+- **No credentials** are read, stored, or transmitted. The plugin never touches `~/.claude`,
   `~/.codex`, the macOS Keychain, or any provider token.
 - **No outbound network access.** Nothing leaves the machine; the plugin opens no sockets at all.
-- **One write, and it is yours.** The only file the plugin writes is the pin set described in
-  [Pinning and ordering](#pinning-and-ordering) — provider and window ids, nothing else. No config
-  is touched, no daemon state is mutated.
+- **One write, and it is yours** — the pin set described above. No config is touched, no daemon
+  state is mutated.
 - **Client code** renders the response and stores nothing.
-
-## Limitations
-
-- **Sidebar placement is host-owned.** The plugin API offers no sidebar widget, badge, or footer
-  slot — only `{ id, title, icon, surface }`. The always-visible meter is an unsupported DOM escape
-  hatch (see [above](#the-sidebar-meter)) and exists on desktop and web only.
-- **Only providers that report usage get rows.** Providers without a signed-in session are counted
-  in the footer, not rendered.
-- **Percentages are the daemon's**, including their refresh cadence. The plugin does not re-derive
-  or estimate anything, so a provider that rate-limits its own usage endpoint stays stale until
-  Paseo refreshes it.
-
----
 
 ## Project structure
 
@@ -297,9 +208,9 @@ Read this before trusting the plugin — Paseo plugins are unsandboxed by design
         └── window-label.ts         # Daemon window ids → /usage-style window names
 ```
 
-**Directories are load-bearing.** Paseo 0.8 builds one bundle per entry and enforces the boundary
-between them by directory — the pre-0.8 `*.client.ts` / `*.server.ts` filename suffixes no longer
-mean anything, and a code module left at the repo root is a compile error:
+**Directories are load-bearing.** Paseo 0.8 builds one bundle per entry and enforces the boundary by
+directory; the pre-0.8 `*.client.ts` / `*.server.ts` filename suffixes no longer mean anything, and
+a code module left at the repo root is a compile error.
 
 | Directory | Bundle | Rules |
 | --- | --- | --- |
@@ -308,8 +219,8 @@ mean anything, and a code module left at the repo root is a compile error:
 | `shared/` | both | Contracts and pure helpers only — no platform APIs, no runtime-specific SDK entries. |
 
 SDK imports follow the same split: `@getpaseo/plugin` for runtime-neutral helpers (`defineRpc`,
-`PluginTheme`), `@getpaseo/plugin/client` and `@getpaseo/plugin/client/react-native` for client code,
-`@getpaseo/plugin/server` for server code.
+`PluginTheme`), `@getpaseo/plugin/client` and `@getpaseo/plugin/client/react-native` for client
+code, `@getpaseo/plugin/server` for server code.
 
 ## Development
 
