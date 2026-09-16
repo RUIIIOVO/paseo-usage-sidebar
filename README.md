@@ -14,10 +14,6 @@ No new credentials, no vendor CLI, no second polling path: the numbers come from
 
 ![The sidebar meter and the usage panel side by side](images/overview.png)
 
-<p align="center">
-  <img src="images/sidebar-meter.png" alt="The always-visible sidebar meter" width="284">
-</p>
-
 ---
 
 ## Contents
@@ -26,6 +22,7 @@ No new credentials, no vendor CLI, no second polling path: the numbers come from
 - [Features](#features)
   - [The usage panel](#the-usage-panel)
   - [The sidebar meter](#the-sidebar-meter)
+  - [Colour](#colour)
   - [Pinning and ordering](#pinning-and-ordering)
   - [Localization](#localization)
 - [Configuration](#configuration)
@@ -80,12 +77,15 @@ Window names are normalized against this plugin's own message table (`5-hour ses
 says nothing about the period it covers, and spells a model-scoped one `Weekly · Fable` in English
 only. Going through the message table means every window name follows the app's language setting.
 
-Spacing, type scale, tone thresholds, and the reset/`runs out` wording are taken from Paseo's own
-provider-usage components, so the panel reads identically to the settings screen. The one
-difference is provider brand logos: those come from a host-internal icon registry that plugins
-cannot import, so rows lead with the provider name.
+Spacing, type scale, and the reset/`runs out` wording are taken from Paseo's own provider-usage
+components, so the panel reads like the settings screen. Two things differ. Provider brand logos
+come from a host-internal icon registry that plugins cannot import, so rows lead with the provider
+name instead. And the bars use this plugin's own colour ramp rather than the host's status tokens —
+see [Colour](#colour).
 
 The surface refreshes every 60 seconds and on demand from **Refresh**.
+
+![The usage panel](images/usage-panel.png)
 
 ### The sidebar meter
 
@@ -94,6 +94,11 @@ The surface refreshes every 60 seconds and on demand from **Refresh**.
 Under the sidebar entry, the plugin renders a compact always-visible meter: one row per pinned quota
 window — label, percentage, a thin bar, and the countdown to that window's reset. It refreshes on
 the same 60-second cycle and needs no click.
+
+<p align="center">
+  <img src="images/sidebar-meter.png" alt="The sidebar meter on the Light theme" width="320">
+  <img src="images/sidebar-meter-dark.png" alt="The sidebar meter on the Dark theme" width="320">
+</p>
 
 The reset is the point of the row. A percentage on its own cannot be acted on — 90% used is fine
 with a reset an hour out and a problem with three days to go — so each row carries it underneath,
@@ -128,9 +133,10 @@ Consequences:
   and this meter is a DOM node outside React, so it identifies the active theme from what is
   actually painted: the sidebar background is matched against Paseo's seven built-in themes (Light,
   Dark, Zinc, Midnight, Claude, Ghostty, Pure black), each of which paints a distinct one, and the
-  meter then uses that theme's own track and muted-foreground tokens. An unrecognized theme — a
-  plugin-contributed one — falls back to the row's rendered text colour with a light or dark status
-  palette chosen by luminance. Colours are re-probed every two seconds, so switching themes updates
+  meter then uses that theme's own track and muted-foreground tokens for its chrome. Bar fills come
+  from the plugin's own ramp instead (see [Colour](#colour)); the probe only decides which of its
+  two variants to use. An unrecognized theme — a plugin-contributed one — falls back to the row's
+  rendered text colour with a light or dark palette chosen by luminance. Colours are re-probed every two seconds, so switching themes updates
   the meter without a reload. Row-sized painted ancestors are skipped during the probe: while the
   usage panel is open Paseo paints a selection tint on its own sidebar row, and reading that tint
   instead of the sidebar identified the Light theme and turned the meter dark-on-dark.
@@ -140,6 +146,36 @@ To disable the meter, remove the `startSidebarMeter(client)` call from `index.cl
 There is no settings toggle yet.
 
 </details>
+
+### Colour
+
+Bars run blue → orange → red. Both surfaces paint from one table (`shared/usage/palette.ts`),
+because they had drifted: the meter carried its own colour literals while the panel derived most of
+its fills from the host's `theme.colors.status*` tokens, so a change to either silently disagreed
+with the other.
+
+| Fill | When | |
+| --- | --- | --- |
+| **Blue** | under 70% used | Nothing to act on. |
+| **Orange** | 70–90% | Worth knowing before you plan the next hour. |
+| **Red** | over 90%, or any window projected to run out before it resets | Act now or wait for the reset. |
+| **Grey** | no percentage reported | Not a low reading — a missing one. |
+
+Green is deliberately absent. It reads as "good" and spends the eye's only strong signal on the
+state that needs no attention; blue is the neutral "nothing to do here" colour, which leaves warm
+hues to mean exactly one thing and makes the orange→red step the only colour change in the block.
+
+The tone a bar paints is the **more severe** of what the provider reported and what the percentage
+implies. Taking the provider's blindly lets its thresholds decide where this ramp steps, and leaves
+a provider that reports no tone at all painting grey; deriving locally and ignoring the provider
+throws away what a percentage cannot express — a window projected to run out early is red at 40%.
+
+Host status tokens are not used for fills. They are tuned for text, where a light background demands
+dark ink: on the Light theme Paseo's `statusWarning` is a dark amber that read as brown at 4px, and
+its `statusSuccess` read as near-black. Orange is the one entry that trades contrast for hue — on
+white, brightness and contrast move in opposite directions, and an orange dark enough to clear 3:1
+on the track is back to reading as amber-brown, so the light value sits at 2.8 on the track and 3.6
+on the page behind it. Blue and red pay no such tax and clear 3:1 on both.
 
 ### Pinning and ordering
 
@@ -256,7 +292,8 @@ Read this before trusting the plugin — Paseo plugins are unsandboxed by design
     ├── selection/contract.ts       # Pin-set schema, RPCs, and snapshot resolution
     └── usage/
         ├── contract.ts             # Zod mirror of the daemon's provider.usage.list payload
-        ├── format.ts               # Percentage, reset, age, and balance formatting
+        ├── palette.ts              # The blue/orange/red bar ramp, shared by both surfaces
+        ├── format.ts               # Percentage, reset, age, tone, and balance formatting
         └── window-label.ts         # Daemon window ids → /usage-style window names
 ```
 
