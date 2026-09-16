@@ -6,12 +6,13 @@ import { publishSelection, subscribeSelection } from "../selection/store";
 import { pinnedRows, readSelection, type Selection } from "../../shared/selection/contract";
 import {
   clampPct,
-  deriveTone,
   formatPct,
   formatResetPrimary,
   formatResetSecondary,
   formatRunsOutLabel,
+  resolveTone,
 } from "../../shared/usage/format";
+import { STATUS_DARK, STATUS_LIGHT, type Palette } from "../../shared/usage/palette";
 import { listUsage, type UsageSnapshot, type UsageTone, type UsageWindow } from "../../shared/usage/contract";
 import { windowLabel } from "../../shared/usage/window-label";
 
@@ -40,22 +41,11 @@ const NODE_MARK = "data-usage-sidebar-meter";
  * Plugins receive theme colors as props inside a surface, but this meter is a raw
  * DOM node outside React, so the theme has to be identified from what is actually
  * rendered. Every built-in theme paints a distinct sidebar background, which makes
- * it a reliable key. Values are Paseo's own tokens, so the meter matches the app
- * exactly rather than approximating it.
+ * it a reliable key. The label and track values are Paseo's own tokens, so the
+ * meter's chrome matches the app exactly rather than approximating it; the bar
+ * fills come from the plugin's shared ramp (shared/usage/palette.ts), which the
+ * panel paints from too.
  */
-type Palette = Record<UsageTone, string>;
-
-const STATUS_DARK: Palette = { ok: "#6cb17b", warning: "#c09664", danger: "#d8847b", default: "#8b90a0" };
-/**
- * `ok` is deliberately brighter than Paseo's own light-theme statusSuccess
- * (#3e704a). That token is tuned for text, where a light background demands a
- * dark ink; as a 3px fill against a #e4e4e7 track it read as near-black and lost
- * the "healthy" signal entirely. This keeps the hue and lifts the lightness,
- * staying above 3:1 against white — the contrast floor for non-text UI.
- * usage-surface applies the same lift, so the panel and the meter agree.
- */
-const STATUS_LIGHT: Palette = { ok: "#4f9c66", warning: "#7b5d39", danger: "#9d433b", default: "#71717a" };
-
 type ThemeTokens = { track: string; label: string; status: Palette };
 
 const THEMES: ReadonlyArray<{ sidebar: [number, number, number] } & ThemeTokens> = [
@@ -217,7 +207,7 @@ function toGroups(snapshot: UsageSnapshot, selection: Selection, messages: Messa
     const entry: MeterRow = {
       label: row.label,
       usedPct: row.usedPct,
-      tone: row.window.tone ?? deriveTone(row.usedPct),
+      tone: resolveTone(row.window.tone, row.usedPct),
       window: row.window,
     };
     const last = groups[groups.length - 1];

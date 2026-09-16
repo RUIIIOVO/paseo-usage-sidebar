@@ -16,14 +16,15 @@ import {
 import {
   balanceReading,
   clampPct,
-  deriveTone,
   formatAgo,
   formatPct,
   formatResetPrimary,
   formatRunsOutLabel,
+  resolveTone,
   statusLabel,
   windowUsedPct,
 } from "../../shared/usage/format";
+import { paletteForSurface } from "../../shared/usage/palette";
 import { isRtl, messagesFor, type Locale, type Messages } from "../../shared/i18n/messages";
 import { getLocale, subscribeLocale } from "../i18n/locale";
 import { publishSelection } from "../selection/store";
@@ -60,37 +61,17 @@ const BUSY_DELAY_MS = 200;
 const BUSY_MINIMUM_MS = 600;
 
 /**
- * Paseo's light-theme statusSuccess (#3e704a) is tuned for text, where light
- * paper demands dark ink. As a 4px bar fill it reads as near-black and the
- * "healthy" signal is lost, so the ok fill keeps the hue and lifts the
- * lightness. Same value as the sidebar meter's STATUS_LIGHT.ok, so the two
- * surfaces agree. Warning and danger already carry enough chroma to survive on
- * a light background and are left on their tokens.
+ * Bar fills come from the plugin's own ramp rather than the host's status
+ * tokens. Those tokens are tuned for text — on a light theme Paseo's
+ * statusWarning is a dark amber that reads as brown at 4px, and its
+ * statusSuccess reads as near-black — and they are a green/amber/red ramp, where
+ * this surface wants blue/orange/red. See shared/usage/palette.ts.
+ *
+ * The ramp is still chosen from the theme (off surface0) so a plugin-contributed
+ * light theme gets the light one.
  */
-const LIGHT_OK_FILL = "#4f9c66";
-
-/** Light themes only — read off surface0 so a plugin-contributed light theme is covered too. */
-function isLightSurface(color: string): boolean {
-  const hex = /^#([0-9a-f]{6})$/i.exec(color.trim());
-  if (!hex) {
-    return false;
-  }
-  const value = Number.parseInt(hex[1]!, 16);
-  const [red, green, blue] = [(value >> 16) & 255, (value >> 8) & 255, value & 255];
-  return (0.299 * red + 0.587 * green + 0.114 * blue) / 255 > 0.6;
-}
-
 function fillColor(theme: PluginTheme, tone: UsageTone | undefined): string {
-  switch (tone) {
-    case "ok":
-      return isLightSurface(theme.colors.surface0) ? LIGHT_OK_FILL : theme.colors.statusSuccess;
-    case "warning":
-      return theme.colors.statusWarning;
-    case "danger":
-      return theme.colors.statusDanger;
-    default:
-      return theme.colors.foregroundMuted;
-  }
+  return paletteForSurface(theme.colors.surface0)[tone ?? "default"];
 }
 
 function useStyles(theme: PluginTheme, compact: boolean, rtl: boolean) {
@@ -266,7 +247,7 @@ function WindowBar({
   onTogglePin?: () => void;
 }) {
   const usedPct = windowUsedPct(window);
-  const tone = window.tone ?? deriveTone(usedPct);
+  const tone = resolveTone(window.tone, usedPct);
   const atRisk = window.runsOutAt != null && window.shortfallPct != null;
   const trailing = atRisk
     ? formatRunsOutLabel(window.runsOutAt, messages)
@@ -327,6 +308,7 @@ function BalanceBar({
 }) {
   const { amountText, usedPct } = balanceReading(balance, locale, messages);
   const reset = formatResetPrimary(balance.resetsAt, locale, messages);
+  const tone = resolveTone(balance.tone, usedPct);
 
   return (
     <View style={styles.bar}>
@@ -344,7 +326,7 @@ function BalanceBar({
           <View
             style={[
               styles.fill,
-              { width: `${clampPct(usedPct)}%`, backgroundColor: fillColor(theme, balance.tone ?? "default") },
+              { width: `${clampPct(usedPct)}%`, backgroundColor: fillColor(theme, tone) },
             ]}
           />
         </View>

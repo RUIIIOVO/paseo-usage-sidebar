@@ -166,17 +166,45 @@ export function formatAmount(value: number, unit: UsageBalance["unit"], locale: 
   }
 }
 
+/** Where the ramp steps. Below `WARNING` a window is simply not the problem. */
+const WARNING_PCT = 70;
+const DANGER_PCT = 90;
+
+/**
+ * A reading's own tone, from the share consumed.
+ *
+ * A known-good reading is `ok`, not `default`: the two used to collapse into one
+ * value, which left every healthy bar painted in the "no data" grey and made
+ * "comfortable" and "unknown" indistinguishable.
+ */
 export function deriveTone(usedPct: number | null): UsageTone {
   if (usedPct == null) {
     return "default";
   }
-  if (usedPct > 90) {
+  if (usedPct > DANGER_PCT) {
     return "danger";
   }
-  if (usedPct >= 70) {
-    return "warning";
+  return usedPct >= WARNING_PCT ? "warning" : "ok";
+}
+
+const SEVERITY: Record<UsageTone, number> = { default: 0, ok: 1, warning: 2, danger: 3 };
+
+/**
+ * The tone a bar paints: the more severe of what the daemon reported and what
+ * the percentage implies.
+ *
+ * Neither alone is right. Taking the daemon's blindly means its thresholds decide
+ * where this plugin's ramp steps, and a provider that reports no tone at all
+ * paints grey. Deriving locally and ignoring the daemon throws away the one thing
+ * a percentage cannot express — a window projected to run out early is `danger`
+ * at 40% — so the escalation is kept and only the floor is ours.
+ */
+export function resolveTone(reported: UsageTone | undefined, usedPct: number | null): UsageTone {
+  const derived = deriveTone(usedPct);
+  if (reported == null) {
+    return derived;
   }
-  return "default";
+  return SEVERITY[reported] >= SEVERITY[derived] ? reported : derived;
 }
 
 /** A window reports either the consumed or the remaining share; normalize to consumed. */
