@@ -10,6 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/loader.mjs --test test/*.test.ts",
     "hooks:install": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
