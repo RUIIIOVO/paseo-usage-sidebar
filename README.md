@@ -26,7 +26,7 @@
 - 🔍 **Expandable Detail Panel**: One-click access to a dashboard showing provider quotas, reset schedules, balances, and status.
 - ⚡ **Zero Setup & Live Sync**: Refreshes every 60 seconds, and on demand from **Refresh**—no manual API key entry or configuration.
 - 🎛️ **Pin, Hide & Reorder**: Choose exactly which quota windows live in the sidebar, and drag them into the order you want.
-- 🎨 **Native Look & Feel**: Follows all seven built-in themes, re-probed every two seconds so a theme switch lands without a reload.
+- 🎨 **Native Look & Feel**: Follows all seven built-in themes, picking up a theme switch without a reload.
 - 🌐 **i18n Ready**: Localized into all nine languages Paseo ships—English, Simplified Chinese, Arabic, Spanish, French, Japanese, Korean, Portuguese (Brazil), and Russian.
 
 ---
