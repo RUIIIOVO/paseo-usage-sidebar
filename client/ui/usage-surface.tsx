@@ -25,6 +25,7 @@ import {
   windowUsedPct,
 } from "../../shared/usage/format";
 import { paletteForSurface } from "../../shared/usage/palette";
+import { errorMessage, panelFailureView } from "../../shared/usage/errors";
 import { isRtl, messagesFor, type Locale, type Messages } from "../../shared/i18n/messages";
 import { getLocale, subscribeLocale } from "../i18n/locale";
 import { publishSelection } from "../selection/store";
@@ -627,6 +628,7 @@ function OrderBlock({
 
 function ProviderBlock({
   provider,
+  stale,
   theme,
   styles,
   locale,
@@ -635,6 +637,8 @@ function ProviderBlock({
   onTogglePin,
 }: {
   provider: ProviderUsage;
+  /** The snapshot is still rendered, but it is not being refreshed any more. */
+  stale: boolean;
   theme: PluginTheme;
   styles: Styles;
   locale: Locale;
@@ -643,10 +647,17 @@ function ProviderBlock({
   onTogglePin: (key: string) => void;
 }) {
   const status = statusLabel(provider.status, messages);
+  /**
+   * Provenance, age, and — when polling has stopped — the fact that the age is
+   * no longer moving. All three answer "how much do I trust this number", so
+   * they belong on one line rather than in a badge of their own.
+   */
   const footer = useMemo(() => {
     const ago = formatAgo(provider.fetchedAt, messages);
-    return [provider.sourceLabel, ago ? messages.updated(ago) : null].filter(Boolean).join(" · ");
-  }, [provider.sourceLabel, provider.fetchedAt, messages]);
+    return [provider.sourceLabel, ago ? messages.updated(ago) : null, stale ? messages.stale : null]
+      .filter(Boolean)
+      .join(" · ");
+  }, [provider.sourceLabel, provider.fetchedAt, messages, stale]);
 
   const hasBars = provider.windows.length > 0 || provider.balances.length > 0;
 
@@ -780,6 +791,17 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
   const refreshing = useBusy(query.isFetching);
 
   /**
+   * React Query keeps the last successful snapshot through a failure, so a
+   * broken poll leaves real numbers on screen. What the failure changes is what
+   * may be said about them and what may be offered to fix it.
+   */
+  const failure = panelFailureView({
+    isError: query.isError,
+    error: query.error,
+    providerCount: providers.length,
+  });
+
+  /**
    * The pin list is ordered, not a set: its order is the order the sidebar meter
    * paints. Until the user pins anything it mirrors the meter's own default.
    */
@@ -864,13 +886,19 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
 
         {query.isError ? (
           <View style={[styles.card, styles.stateCard]}>
-            <Text style={styles.stateTitle}>{messages.errorTitle}</Text>
-            <Text style={styles.stateText}>
-              {query.error instanceof Error ? query.error.message : String(query.error)}
+            <Text style={styles.stateTitle}>
+              {failure.linkLost ? messages.linkLostTitle : messages.errorTitle}
             </Text>
-            <Pressable accessibilityRole="button" style={styles.retryButton} onPress={() => void query.refetch()}>
-              <Text style={styles.retryLabel}>{messages.retry}</Text>
-            </Pressable>
+            <Text style={styles.stateText}>
+              {failure.linkLost ? messages.linkLostBody : errorMessage(query.error)}
+            </Text>
+            {/* A dropped session cannot be retried into working, so offering the
+                button would just be a way to fail again. */}
+            {failure.showRetry ? (
+              <Pressable accessibilityRole="button" style={styles.retryButton} onPress={() => void query.refetch()}>
+                <Text style={styles.retryLabel}>{messages.retry}</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
@@ -903,6 +931,7 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
                 {index > 0 ? <View style={styles.divider} /> : null}
                 <ProviderBlock
                   provider={provider}
+                  stale={failure.showingStale}
                   theme={theme}
                   styles={styles}
                   locale={locale}

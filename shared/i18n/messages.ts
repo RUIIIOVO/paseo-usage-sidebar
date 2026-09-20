@@ -18,6 +18,16 @@ export type Messages = {
   empty: string;
   errorTitle: string;
   retry: string;
+  /**
+   * Shown instead of the host's own error when the plugin's session with the
+   * daemon has ended. The host's wording there is "Update the host to ...",
+   * which sends people to check for an update they do not need; only a plugin
+   * reload rebuilds the connection, so the copy has to say exactly that.
+   */
+  linkLostTitle: string;
+  linkLostBody: string;
+  /** Marks readings that are still on screen but are no longer being refreshed. */
+  stale: string;
   unavailable: string;
   error: string;
   resettingNow: string;
@@ -58,6 +68,9 @@ const en: Messages = {
   empty: "No usage data",
   errorTitle: "Unable to load usage",
   retry: "Try again",
+  linkLostTitle: "Reload the plugin",
+  linkLostBody: "The session with the Paseo daemon ended. Reload the plugin to reconnect \u2014 the app itself is up to date.",
+  stale: "Not updating",
   unavailable: "Unavailable",
   error: "Error",
   resettingNow: "resetting now",
@@ -93,6 +106,9 @@ const zhCN: Messages = {
   empty: "暂无用量数据",
   errorTitle: "无法加载用量",
   retry: "重试",
+  linkLostTitle: "请重新加载插件",
+  linkLostBody: "与 Paseo 守护进程的连接已断开。重新加载插件即可恢复，应用本身无需更新。",
+  stale: "已停止更新",
   unavailable: "不可用",
   error: "错误",
   resettingNow: "即将重置",
@@ -130,6 +146,9 @@ const ja: Messages = {
   empty: "使用量データがありません",
   errorTitle: "使用量を読み込めません",
   retry: "再試行",
+  linkLostTitle: "プラグインを再読み込みしてください",
+  linkLostBody: "Paseo デーモンとの接続が切断されました。プラグインを再読み込みすると復旧します。アプリ本体の更新は不要です。",
+  stale: "更新停止中",
   unavailable: "利用不可",
   error: "エラー",
   resettingNow: "まもなくリセット",
@@ -165,6 +184,9 @@ const ko: Messages = {
   empty: "사용량 데이터 없음",
   errorTitle: "사용량을 불러올 수 없음",
   retry: "다시 시도",
+  linkLostTitle: "플러그인을 다시 로드하세요",
+  linkLostBody: "Paseo 데몬과의 연결이 끊어졌습니다. 플러그인을 다시 로드하면 복구됩니다. 앱 자체는 업데이트할 필요가 없습니다.",
+  stale: "업데이트 중지됨",
   unavailable: "사용 불가",
   error: "오류",
   resettingNow: "곧 초기화",
@@ -200,6 +222,9 @@ const es: Messages = {
   empty: "Sin datos de uso",
   errorTitle: "No se pudo cargar el uso",
   retry: "Reintentar",
+  linkLostTitle: "Vuelve a cargar el complemento",
+  linkLostBody: "La sesión con el daemon de Paseo terminó. Vuelve a cargar el complemento para reconectar: la aplicación ya está actualizada.",
+  stale: "Sin actualizar",
   unavailable: "No disponible",
   error: "Error",
   resettingNow: "restableciendo ahora",
@@ -235,6 +260,9 @@ const fr: Messages = {
   empty: "Aucune donnée d'utilisation",
   errorTitle: "Impossible de charger l'utilisation",
   retry: "Réessayer",
+  linkLostTitle: "Rechargez l'extension",
+  linkLostBody: "La session avec le démon Paseo a pris fin. Rechargez l'extension pour vous reconnecter : l'application elle-même est à jour.",
+  stale: "Plus de mise à jour",
   unavailable: "Indisponible",
   error: "Erreur",
   resettingNow: "réinitialisation en cours",
@@ -270,6 +298,9 @@ const ptBR: Messages = {
   empty: "Sem dados de uso",
   errorTitle: "Não foi possível carregar o uso",
   retry: "Tentar novamente",
+  linkLostTitle: "Recarregue o plugin",
+  linkLostBody: "A sessão com o daemon do Paseo terminou. Recarregue o plugin para reconectar: o aplicativo já está atualizado.",
+  stale: "Sem atualizar",
   unavailable: "Indisponível",
   error: "Erro",
   resettingNow: "redefinindo agora",
@@ -305,6 +336,9 @@ const ru: Messages = {
   empty: "Нет данных об использовании",
   errorTitle: "Не удалось загрузить данные",
   retry: "Повторить",
+  linkLostTitle: "Перезагрузите плагин",
+  linkLostBody: "Сессия с демоном Paseo завершена. Перезагрузите плагин, чтобы восстановить связь: само приложение обновлять не нужно.",
+  stale: "Не обновляется",
   unavailable: "Недоступно",
   error: "Ошибка",
   resettingNow: "сброс сейчас",
@@ -340,6 +374,9 @@ const ar: Messages = {
   empty: "لا توجد بيانات استخدام",
   errorTitle: "تعذّر تحميل الاستخدام",
   retry: "حاول مرة أخرى",
+  linkLostTitle: "أعد تحميل الإضافة",
+  linkLostBody: "انتهت الجلسة مع خدمة Paseo. أعد تحميل الإضافة لإعادة الاتصال، فالتطبيق نفسه محدَّث.",
+  stale: "متوقّف عن التحديث",
   unavailable: "غير متاح",
   error: "خطأ",
   resettingNow: "يُعاد الضبط الآن",
