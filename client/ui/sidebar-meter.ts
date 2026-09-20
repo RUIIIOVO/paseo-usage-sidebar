@@ -270,8 +270,14 @@ export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
 
     node.textContent = "";
     if (groups.length === 0) {
+      // Emptying the block is not enough to make it disappear: its own margins
+      // and padding are still laid out, which leaves a gap under the sidebar
+      // entry before the meter has any rows, or once they are all unpinned.
+      // display:none takes the box out of layout entirely.
+      node.style.display = "none";
       return;
     }
+    node.style.display = "flex";
 
     /**
      * The block has no room for a sentence, and the countdowns keep ticking
