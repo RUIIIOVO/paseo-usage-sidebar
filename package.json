@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "hooks:install": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "@getpaseo/plugin": "0.8.0",
