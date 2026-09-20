@@ -488,6 +488,7 @@ function OrderBlock({
   locale,
   messages,
   onReorder,
+  onRemove,
 }: {
   rows: PinnedRow[];
   styles: Styles;
@@ -495,6 +496,8 @@ function OrderBlock({
   locale: Locale;
   messages: Messages;
   onReorder: (keys: string[]) => void;
+  /** Unpin straight from this block, without hunting for the window row below. */
+  onRemove: (key: string) => void;
 }) {
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
@@ -618,6 +621,17 @@ function OrderBlock({
               ]}
             >
               <Icon name="ChevronDown" size={12} color={theme.colors.foregroundMuted} />
+            </Pressable>
+            {/* Same affordance as the window row's pin toggle, on the block that
+                actually lists what is pinned — removing something here no longer
+                means scrolling down to find the row it came from. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={messages.hideFromSidebar}
+              onPress={() => onRemove(row.key)}
+              style={({ pressed }) => [styles.orderButton, pressed ? styles.iconButtonPressed : null]}
+            >
+              <Icon name="Minus" size={12} color={theme.colors.foregroundMuted} />
             </Pressable>
           </View>
         );
@@ -920,6 +934,7 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
               locale={locale}
               messages={messages}
               onReorder={commitOrder}
+              onRemove={togglePin}
             />
           </View>
         ) : null}
