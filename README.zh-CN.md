@@ -16,7 +16,9 @@
 
 **无需任何配置**——数据直接取自 Paseo 自己的 `provider.usage.list`，因此永远和 **设置 → Usage** 一致。不需要 API Key，不依赖厂商 CLI，也不另起一条轮询链路。
 
-![侧边栏常驻迷你仪表](images/sidebar-meter-dark.png)
+<p align="center">
+  <img src="images/sidebar-meter-dark.png" alt="侧边栏常驻迷你仪表" />
+</p>
 
 ---
 

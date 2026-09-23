@@ -16,7 +16,9 @@
 
 **Zero configuration required**—it reads Paseo's own `provider.usage.list`, so the numbers always agree with **Settings → Usage**. No API keys, no vendor CLI, no second polling path.
 
-![The pinned mini meter in the sidebar](images/sidebar-meter-dark.png)
+<p align="center">
+  <img src="images/sidebar-meter-dark.png" alt="The pinned mini meter in the sidebar" />
+</p>
 
 ---
 
