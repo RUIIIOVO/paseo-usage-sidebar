@@ -36,7 +36,7 @@
 |           |                  Pinned Mini Meter                  |             Expandable Detail Panel             |
 | :-------: | :-------------------------------------------------: | :---------------------------------------------: |
 | **Light** |   ![Mini meter, Light theme](images/sidebar-meter.png)    |    ![The usage panel](images/usage-panel.png)     |
-| **Dark**  | ![Mini meter, Dark theme](images/sidebar-meter-dark.png) | ![The panel on the Dark theme](images/overview-dark.png) |
+| **Dark**  | ![Mini meter, Dark theme](images/sidebar-meter-dark.png) | ![The panel on the Dark theme](images/usage-panel-dark.png) |
 
 ---
 

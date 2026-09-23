@@ -36,7 +36,7 @@
 |          |             侧边栏常驻迷你仪表             |            展开式详细面板            |
 | :------: | :--------------------------------------: | :---------------------------------: |
 | **Light** |  ![Light 主题下的迷你仪表](images/sidebar-meter.png)  |  ![用量面板](images/usage-panel.png)   |
-| **Dark**  | ![Dark 主题下的迷你仪表](images/sidebar-meter-dark.png) | ![Dark 主题下的面板](images/overview-dark.png) |
+| **Dark**  | ![Dark 主题下的迷你仪表](images/sidebar-meter-dark.png) | ![Dark 主题下的面板](images/usage-panel-dark.png) |
 
 ---
 
