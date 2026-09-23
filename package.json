@@ -1,8 +1,8 @@
 {
   "name": "paseo-usage-sidebar",
-  "description": "Provider plan usage in the Paseo sidebar: an openable panel plus an always-visible meter under the sidebar entry, read from Paseo's own usage data so the numbers match Settings \u2192 Usage.",
+  "description": "Provider plan usage in the Paseo sidebar: an openable panel plus an always-visible meter under the sidebar entry, read from Paseo's own usage data so the numbers match Settings → Usage.",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.1.1",
   "license": "MIT",
   "repository": {
     "type": "git",
