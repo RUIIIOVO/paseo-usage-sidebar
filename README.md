@@ -16,7 +16,7 @@
 
 **Zero configuration required**—it reads Paseo's own `provider.usage.list`, so the numbers always agree with **Settings → Usage**. No API keys, no vendor CLI, no second polling path.
 
-![The sidebar meter and the usage panel](images/overview.png)
+![The pinned mini meter in the sidebar](images/sidebar-meter-dark.png)
 
 ---
 
