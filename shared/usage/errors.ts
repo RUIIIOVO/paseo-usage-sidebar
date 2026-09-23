@@ -24,7 +24,7 @@ const PROVEN_PATTERNS = [/update the host to list provider usage/i];
  * transport blip. Telling someone to reload the plugin over a blip that heals
  * itself is a worse failure than showing the host's own wording for one poll,
  * so these only count as a diagnosis once they persist — see
- * `SUSPECT_GRACE_MS` in server/usage/read.ts.
+ * `SUSPECT_GRACE_MS` below.
  */
 const SUSPECTED_PATTERNS = [/connection lost/i, /daemon client closed/i, /daemon client is disposed/i];
 

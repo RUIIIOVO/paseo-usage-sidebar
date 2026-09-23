@@ -4,9 +4,10 @@ import { join } from "node:path";
 import { SelectionSchema, type Selection } from "../../shared/selection/contract";
 
 /**
- * Paseo 0.7 has no plugin settings storage — `defineSettings` arrives in 0.8 —
- * so the pin list is kept in the plugin's own state file. It holds provider and
- * window ids only: no tokens, no usage numbers, nothing account-identifying.
+ * The pin list is kept in the plugin's own state file. That predates Paseo 0.8's
+ * `defineSettings`; moving to it would need a migration for the files already
+ * on disk. It holds provider and window ids only: no tokens, no usage numbers,
+ * nothing account-identifying.
  *
  * Written to XDG state rather than into $PASEO_HOME so it never collides with
  * daemon-owned files, and replaced atomically so a crash mid-write cannot leave

@@ -33,6 +33,7 @@ import {
   defaultKeys,
   pinnedRows,
   readSelection,
+  reorderVisible,
   rowKey,
   writeSelection,
   type PinnedRow,
@@ -145,6 +146,15 @@ function useStyles(theme: PluginTheme, compact: boolean, rtl: boolean) {
         },
         orderButtonDisabled: { opacity: 0.35 },
         orderEmpty: { padding: SPACE[4] },
+        orderError: {
+          marginTop: SPACE[2],
+          marginLeft: SPACE[1],
+          color: theme.colors.statusDanger,
+          fontSize: FONT.sm,
+          lineHeight: FONT.sm * 1.4,
+          writingDirection,
+          textAlign,
+        },
         orderSection: { marginBottom: SPACE[6] },
 
         card: {
@@ -430,6 +440,10 @@ function DragHandle({
       return;
     }
 
+    // A row can leave mid-gesture — unpinned from elsewhere, or its window gone
+    // from the next poll — and the listeners below hang off `window`, not the node.
+    let abandon: (() => void) | null = null;
+
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0) {
         return;
@@ -442,6 +456,7 @@ function DragHandle({
 
       const onPointerMove = (moveEvent: PointerEvent) => onDrag(rowKey, moveEvent.clientY - originY);
       const finish = (committed: boolean) => {
+        abandon = null;
         window.removeEventListener("pointermove", onPointerMove);
         window.removeEventListener("pointerup", onPointerUp);
         window.removeEventListener("pointercancel", onPointerCancel);
@@ -449,6 +464,7 @@ function DragHandle({
       };
       const onPointerUp = () => finish(true);
       const onPointerCancel = () => finish(false);
+      abandon = onPointerCancel;
 
       window.addEventListener("pointermove", onPointerMove);
       window.addEventListener("pointerup", onPointerUp);
@@ -458,7 +474,10 @@ function DragHandle({
     node.addEventListener("pointerdown", onPointerDown);
     node.style.cursor = "grab";
     node.style.touchAction = "none";
-    return () => node.removeEventListener("pointerdown", onPointerDown);
+    return () => {
+      node.removeEventListener("pointerdown", onPointerDown);
+      abandon?.();
+    };
   }, [rowKey, onBegin, onDrag, onEnd]);
 
   return (
@@ -854,6 +873,16 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
       queryClient.setQueryData(["usage-sidebar", "selection"], selection);
       publishSelection(selection);
     },
+    /**
+     * The server fails this RPC rather than swallow a write it could not make,
+     * and that only helps if the failure lands somewhere. Dropping the local
+     * edit puts the panel back on the last arrangement that was actually saved —
+     * the one the sidebar meter never stopped showing — and `isError` carries the
+     * explanation until the next attempt.
+     */
+    onError: () => {
+      setLocalOrder(null);
+    },
   });
 
   const commitOrder = (keys: string[]) => {
@@ -933,9 +962,12 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
               theme={theme}
               locale={locale}
               messages={messages}
-              onReorder={commitOrder}
+              // The block arranges only the rows this snapshot resolved; the pins
+              // it could not see keep their places in the list that is saved.
+              onReorder={(visible) => commitOrder(reorderVisible(order, visible))}
               onRemove={togglePin}
             />
+            {savePins.isError ? <Text style={styles.orderError}>{messages.pinSaveFailed}</Text> : null}
           </View>
         ) : null}
 

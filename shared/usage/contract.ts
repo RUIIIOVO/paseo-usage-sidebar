@@ -51,7 +51,10 @@ export const ProviderUsageSchema = z.object({
   error: z.string().nullable().optional(),
 });
 
-/** Which code path answered. Surfaced in the UI footer so failures are diagnosable. */
+/**
+ * Which code path answered. Only `sdk` is produced now: `daemon` was the pre-0.8
+ * direct-WebSocket fallback that server/usage/read.ts no longer carries.
+ */
 export const UsageSourceSchema = z.enum(["sdk", "daemon"]);
 
 export const UsageSnapshotSchema = z.object({

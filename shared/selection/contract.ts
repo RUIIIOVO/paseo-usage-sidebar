@@ -40,6 +40,25 @@ export function defaultKeys(snapshot: UsageSnapshot): string[] {
   return provider ? provider.windows.map((window) => rowKey(provider.providerId, window.id)) : [];
 }
 
+/**
+ * Apply a rearrangement of the rows on screen to the full pin list.
+ *
+ * The reorder block only ever sees the pins the current snapshot can resolve, so
+ * what it hands back is a permutation of those — not of the list that gets
+ * persisted. Saving it as-is dropped every pin whose provider happened to be
+ * missing from that one poll, for good. The visible keys are instead dealt back
+ * into the slots visible keys already held, which leaves an unresolved pin exactly
+ * where it was, ready for the poll that brings its window back.
+ */
+export function reorderVisible(order: readonly string[], visible: readonly string[]): string[] {
+  const slots = new Set(visible);
+  const queue = [...visible];
+  const next = order.map((key) => (slots.has(key) ? (queue.shift() ?? key) : key));
+  // Not reachable from the panel, where `visible` is drawn from `order`; kept so a
+  // caller that passes a stray key loses nothing rather than losing it silently.
+  return [...next, ...queue];
+}
+
 export type PinnedRow = {
   key: string;
   providerId: string;
