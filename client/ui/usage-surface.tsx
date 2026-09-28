@@ -19,6 +19,7 @@ import {
   formatAgo,
   formatPct,
   formatResetPrimary,
+  formatWindowReset,
   formatRunsOutLabel,
   resolveTone,
   statusLabel,
@@ -262,7 +263,7 @@ function WindowBar({
   const atRisk = window.runsOutAt != null && window.shortfallPct != null;
   const trailing = atRisk
     ? formatRunsOutLabel(window.runsOutAt, messages)
-    : formatResetPrimary(window.resetsAt, locale, messages);
+    : formatWindowReset(window, locale, messages);
 
   return (
     <View style={styles.bar}>

@@ -8,6 +8,7 @@ import {
   clampPct,
   formatPct,
   formatResetPrimary,
+  formatWindowReset,
   formatResetSecondary,
   formatRunsOutLabel,
   resolveTone,
@@ -188,7 +189,7 @@ function rowTiming(row: MeterRow, messages: Messages, locale: Locale): RowTiming
   return {
     text: atRisk
       ? formatRunsOutLabel(row.window.runsOutAt, messages)
-      : formatResetPrimary(row.window.resetsAt, locale, messages),
+      : formatWindowReset(row.window, locale, messages),
     atRisk,
     alternate: atRisk
       ? formatResetPrimary(row.window.resetsAt, locale, messages)

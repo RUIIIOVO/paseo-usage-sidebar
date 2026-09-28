@@ -31,6 +31,11 @@ export type Messages = {
   unavailable: string;
   error: string;
   resettingNow: string;
+  /**
+   * A window with nothing used and no reset instant has not started: Claude's
+   * session window only begins counting at the first request after it lapses.
+   */
+  idleWindow: string;
   justNow: string;
   /** Compact duration units, joined into at most two parts (`2d 3h`, `3h 25m`, `40m`). */
   days: (value: number) => string;
@@ -76,6 +81,7 @@ const en: Messages = {
   unavailable: "Unavailable",
   error: "Error",
   resettingNow: "resetting now",
+  idleWindow: "starts on next use",
   justNow: "just now",
   days: (value) => `${value}d`,
   hours: (value) => `${value}h`,
@@ -115,6 +121,7 @@ const zhCN: Messages = {
   unavailable: "不可用",
   error: "错误",
   resettingNow: "即将重置",
+  idleWindow: "下次使用时开始计时",
   justNow: "刚刚",
   days: (value) => `${value} 天`,
   hours: (value) => `${value} 小时`,
@@ -156,6 +163,7 @@ const ja: Messages = {
   unavailable: "利用不可",
   error: "エラー",
   resettingNow: "まもなくリセット",
+  idleWindow: "次回の利用から計測開始",
   justNow: "たった今",
   days: (value) => `${value}日`,
   hours: (value) => `${value}時間`,
@@ -195,6 +203,7 @@ const ko: Messages = {
   unavailable: "사용 불가",
   error: "오류",
   resettingNow: "곧 초기화",
+  idleWindow: "다음 사용 시 시작",
   justNow: "방금",
   days: (value) => `${value}일`,
   hours: (value) => `${value}시간`,
@@ -234,6 +243,7 @@ const es: Messages = {
   unavailable: "No disponible",
   error: "Error",
   resettingNow: "restableciendo ahora",
+  idleWindow: "empieza con el próximo uso",
   justNow: "ahora mismo",
   days: (value) => `${value} d`,
   hours: (value) => `${value} h`,
@@ -273,6 +283,7 @@ const fr: Messages = {
   unavailable: "Indisponible",
   error: "Erreur",
   resettingNow: "réinitialisation en cours",
+  idleWindow: "démarre à la prochaine utilisation",
   justNow: "à l'instant",
   days: (value) => `${value} j`,
   hours: (value) => `${value} h`,
@@ -312,6 +323,7 @@ const ptBR: Messages = {
   unavailable: "Indisponível",
   error: "Erro",
   resettingNow: "redefinindo agora",
+  idleWindow: "começa no próximo uso",
   justNow: "agora mesmo",
   days: (value) => `${value} d`,
   hours: (value) => `${value} h`,
@@ -351,6 +363,7 @@ const ru: Messages = {
   unavailable: "Недоступно",
   error: "Ошибка",
   resettingNow: "сброс сейчас",
+  idleWindow: "начнётся при следующем использовании",
   justNow: "только что",
   days: (value) => `${value} д`,
   hours: (value) => `${value} ч`,
@@ -390,6 +403,7 @@ const ar: Messages = {
   unavailable: "غير متاح",
   error: "خطأ",
   resettingNow: "يُعاد الضبط الآن",
+  idleWindow: "يبدأ عند الاستخدام التالي",
   justNow: "للتو",
   days: (value) => `${value} ي`,
   hours: (value) => `${value} س`,
