@@ -86,7 +86,9 @@ export function formatResetLabel(iso: string | null | undefined, messages: Messa
   if (!Number.isFinite(deltaMs)) {
     return null;
   }
-  if (deltaMs <= 0) {
+  // Under a minute the countdown would floor to "0m", which reads as a
+  // contradiction next to a reset that has not happened yet.
+  if (deltaMs < 60_000) {
     return messages.resettingNow;
   }
   const duration = compactDuration(deltaMs, messages);
