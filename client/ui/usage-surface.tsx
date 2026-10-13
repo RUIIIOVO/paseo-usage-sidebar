@@ -23,7 +23,9 @@ import {
   formatRunsOutLabel,
   resolveTone,
   statusLabel,
+  windowDisplayPct,
   windowUsedPct,
+  type DisplayMode,
 } from "../../shared/usage/format";
 import { paletteForSurface } from "../../shared/usage/palette";
 import { errorMessage, panelFailureView } from "../../shared/usage/errors";
@@ -185,6 +187,19 @@ function useStyles(theme: PluginTheme, compact: boolean, rtl: boolean) {
 
         bars: { gap: SPACE[3] },
         bar: { gap: 3 },
+        barRow: {
+          marginHorizontal: -SPACE[2],
+          paddingHorizontal: SPACE[2],
+          paddingVertical: SPACE[1.5],
+          borderRadius: 8,
+          gap: 3,
+        },
+        barRowPinned: {
+          backgroundColor: theme.colors.surface2,
+        },
+        barRowPressed: {
+          opacity: 0.8,
+        },
         barLabelRow: {
           flexDirection: row,
           justifyContent: "space-between",
@@ -193,11 +208,51 @@ function useStyles(theme: PluginTheme, compact: boolean, rtl: boolean) {
         },
         barLabel: { flexShrink: 1, color: theme.colors.foregroundMuted, fontSize: FONT.sm, writingDirection, textAlign },
         barValueGroup: { flexDirection: row, alignItems: "center", gap: SPACE[2], flexShrink: 0 },
-        /**
-         * A secondary toggle, sized to match the reorder block's arrows. Pinned state
-         * reads as a filled slot rather than an accent chip: an accent fill made this
-         * the most saturated thing on the screen, louder than the bars it annotates.
-         */
+        pinIconBox: {
+          width: 16,
+          height: 16,
+          alignItems: "center",
+          justifyContent: "center",
+        },
+        displayOptionsCard: {
+          flexDirection: row,
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingVertical: SPACE[2],
+          paddingHorizontal: SPACE[4],
+          marginBottom: SPACE[3],
+        },
+        displayOptionsLabel: {
+          color: theme.colors.foregroundMuted,
+          fontSize: FONT.sm,
+          writingDirection,
+          textAlign,
+        },
+        segmentedControl: {
+          flexDirection: row,
+          alignItems: "center",
+          backgroundColor: theme.colors.surface2,
+          borderRadius: 6,
+          padding: 2,
+          gap: 2,
+        },
+        segment: {
+          paddingVertical: 3,
+          paddingHorizontal: 10,
+          borderRadius: 4,
+        },
+        segmentActive: {
+          backgroundColor: theme.colors.surface0,
+        },
+        segmentLabel: {
+          color: theme.colors.foregroundMuted,
+          fontSize: FONT.sm,
+          writingDirection,
+        },
+        segmentLabelActive: {
+          color: theme.colors.foreground,
+          fontWeight: "500",
+        },
         pinButton: {
           width: 22,
           height: 22,
@@ -248,6 +303,7 @@ function WindowBar({
   locale,
   messages,
   pinned,
+  displayAs = "used",
   onTogglePin,
 }: {
   window: UsageWindow;
@@ -256,8 +312,10 @@ function WindowBar({
   locale: Locale;
   messages: Messages;
   pinned?: boolean;
+  displayAs?: DisplayMode;
   onTogglePin?: () => void;
 }) {
+  const displayPct = windowDisplayPct(window, displayAs);
   const usedPct = windowUsedPct(window);
   const tone = resolveTone(window.tone, usedPct);
   const atRisk = window.runsOutAt != null && window.shortfallPct != null;
@@ -265,44 +323,55 @@ function WindowBar({
     ? formatRunsOutLabel(window.runsOutAt, messages)
     : formatWindowReset(window, locale, messages);
 
-  return (
-    <View style={styles.bar}>
+  const content = (
+    <>
       <View style={styles.barLabelRow}>
         <Text style={styles.barLabel} numberOfLines={1}>
           {windowLabel(window, messages)}
         </Text>
         <View style={styles.barValueGroup}>
           <Text style={styles.barValue}>
-            {usedPct != null ? formatPct(usedPct, locale) : "—"}
+            {displayPct != null ? formatPct(displayPct, locale) : "—"}
             {trailing ? <Text style={atRisk ? styles.barAtRisk : styles.barReset}>{` · ${trailing}`}</Text> : null}
           </Text>
           {onTogglePin ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={pinned ? messages.hideFromSidebar : messages.showInSidebar}
-              onPress={onTogglePin}
-              style={({ pressed }) => [
-                styles.pinButton,
-                pinned ? styles.pinButtonActive : null,
-                pressed ? styles.iconButtonPressed : null,
-              ]}
-            >
+            <View style={styles.pinIconBox}>
               <Icon
-                name={pinned ? "Minus" : "Plus"}
+                name="Pin"
                 size={12}
                 color={pinned ? theme.colors.foreground : theme.colors.foregroundMuted}
               />
-            </Pressable>
+            </View>
           ) : null}
         </View>
       </View>
       <View style={styles.track}>
         <View
-          style={[styles.fill, { width: `${clampPct(usedPct ?? 0)}%`, backgroundColor: fillColor(theme, tone) }]}
+          style={[styles.fill, { width: `${clampPct(displayPct ?? 0)}%`, backgroundColor: fillColor(theme, tone) }]}
         />
       </View>
-    </View>
+    </>
   );
+
+  if (onTogglePin) {
+    return (
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityLabel={pinned ? messages.hideFromSidebar : messages.showInSidebar}
+        accessibilityState={{ checked: Boolean(pinned) }}
+        onPress={onTogglePin}
+        style={({ pressed }) => [
+          styles.barRow,
+          pinned ? styles.barRowPinned : null,
+          pressed ? styles.barRowPressed : null,
+        ]}
+      >
+        {content}
+      </Pressable>
+    );
+  }
+
+  return <View style={styles.bar}>{content}</View>;
 }
 
 function BalanceBar({
@@ -668,6 +737,7 @@ function ProviderBlock({
   locale,
   messages,
   pinnedKeys,
+  displayAs,
   onTogglePin,
 }: {
   provider: ProviderUsage;
@@ -678,6 +748,7 @@ function ProviderBlock({
   locale: Locale;
   messages: Messages;
   pinnedKeys: ReadonlySet<string>;
+  displayAs: DisplayMode;
   onTogglePin: (key: string) => void;
 }) {
   const status = statusLabel(provider.status, messages);
@@ -739,6 +810,7 @@ function ProviderBlock({
               locale={locale}
               messages={messages}
               pinned={pinnedKeys.has(rowKey(provider.providerId, window.id))}
+              displayAs={displayAs}
               onTogglePin={() => onTogglePin(rowKey(provider.providerId, window.id))}
             />
           ))}
@@ -853,7 +925,9 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
    * mid-drag would yank the list back to the server's copy.
    */
   const [localOrder, setLocalOrder] = useState<string[] | null>(null);
+  const [localDisplayAs, setLocalDisplayAs] = useState<DisplayMode | null>(null);
   const order = localOrder ?? persistedOrder;
+  const displayAs: DisplayMode = localDisplayAs ?? selectionQuery.data?.displayAs ?? "used";
   const pinnedKeys = useMemo(() => new Set(order), [order]);
 
   const pinned: PinnedRow[] = useMemo(() => {
@@ -862,33 +936,36 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
     }
     return pinnedRows(
       query.data,
-      { keys: order, configured: true },
+      { keys: order, configured: true, displayAs },
       (_provider, window) => windowLabel(window, messages),
       messages,
     );
-  }, [query.data, order, messages]);
+  }, [query.data, order, displayAs, messages]);
 
   const savePins = useMutation({
-    mutationFn: (keys: string[]) => persistSelection({ keys }),
+    mutationFn: (input: { keys: string[]; displayAs?: DisplayMode }) => persistSelection(input),
     onSuccess: (selection) => {
       queryClient.setQueryData(["usage-sidebar", "selection"], selection);
       publishSelection(selection);
     },
-    /**
-     * The server fails this RPC rather than swallow a write it could not make,
-     * and that only helps if the failure lands somewhere. Dropping the local
-     * edit puts the panel back on the last arrangement that was actually saved —
-     * the one the sidebar meter never stopped showing — and `isError` carries the
-     * explanation until the next attempt.
-     */
     onError: () => {
       setLocalOrder(null);
+      setLocalDisplayAs(null);
     },
   });
 
-  const commitOrder = (keys: string[]) => {
+  const commitOrder = (keys: string[], nextDisplayAs?: DisplayMode) => {
     setLocalOrder(keys);
-    savePins.mutate(keys);
+    const mode = nextDisplayAs ?? displayAs;
+    if (nextDisplayAs) {
+      setLocalDisplayAs(nextDisplayAs);
+    }
+    savePins.mutate({ keys, displayAs: mode });
+  };
+
+  const commitDisplayAs = (mode: DisplayMode) => {
+    setLocalDisplayAs(mode);
+    savePins.mutate({ keys: order, displayAs: mode });
   };
 
   const togglePin = (key: string) => {
@@ -953,6 +1030,34 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
         ) : null}
 
         {providers.length > 0 ? (
+          <View style={[styles.card, styles.displayOptionsCard]}>
+            <Text style={styles.displayOptionsLabel}>{messages.displayAs}</Text>
+            <View style={styles.segmentedControl}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={messages.displayUsed}
+                onPress={() => commitDisplayAs("used")}
+                style={[styles.segment, displayAs === "used" ? styles.segmentActive : null]}
+              >
+                <Text style={[styles.segmentLabel, displayAs === "used" ? styles.segmentLabelActive : null]}>
+                  {messages.displayUsed}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={messages.displayRemaining}
+                onPress={() => commitDisplayAs("remaining")}
+                style={[styles.segment, displayAs === "remaining" ? styles.segmentActive : null]}
+              >
+                <Text style={[styles.segmentLabel, displayAs === "remaining" ? styles.segmentLabelActive : null]}>
+                  {messages.displayRemaining}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        {providers.length > 0 ? (
           <View style={styles.orderSection}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionHeaderTitle}>{messages.sidebarOrder}</Text>
@@ -985,6 +1090,7 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
                   locale={locale}
                   messages={messages}
                   pinnedKeys={pinnedKeys}
+                  displayAs={displayAs}
                   onTogglePin={togglePin}
                 />
               </Fragment>

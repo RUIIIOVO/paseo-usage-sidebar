@@ -65,6 +65,9 @@ export type Messages = {
   reorder: string;
   /** The pin list could not be written, so the arrangement on screen was rolled back. */
   pinSaveFailed: string;
+  displayAs: string;
+  displayUsed: string;
+  displayRemaining: string;
 };
 
 const en: Messages = {
@@ -105,6 +108,9 @@ const en: Messages = {
   moveDown: "Move down",
   reorder: "Drag to reorder",
   pinSaveFailed: "Could not save the sidebar arrangement. Your change was undone.",
+  displayAs: "Percentages",
+  displayUsed: "Used",
+  displayRemaining: "Remaining",
 };
 
 const zhCN: Messages = {
@@ -147,6 +153,9 @@ const zhCN: Messages = {
   moveDown: "下移",
   reorder: "拖拽排序",
   pinSaveFailed: "无法保存侧边栏排列，已撤销此次更改。",
+  displayAs: "百分比",
+  displayUsed: "已用",
+  displayRemaining: "剩余",
 };
 
 const ja: Messages = {
@@ -187,6 +196,9 @@ const ja: Messages = {
   moveDown: "下へ",
   reorder: "ドラッグして並べ替え",
   pinSaveFailed: "サイドバーの配置を保存できませんでした。変更は取り消されました。",
+  displayAs: "パーセンテージ",
+  displayUsed: "使用済み",
+  displayRemaining: "残り",
 };
 
 const ko: Messages = {
@@ -227,6 +239,9 @@ const ko: Messages = {
   moveDown: "아래로",
   reorder: "끌어서 순서 변경",
   pinSaveFailed: "사이드바 배치를 저장하지 못했습니다. 변경 사항이 취소되었습니다.",
+  displayAs: "백분율",
+  displayUsed: "사용됨",
+  displayRemaining: "남음",
 };
 
 const es: Messages = {
@@ -267,6 +282,9 @@ const es: Messages = {
   moveDown: "Bajar",
   reorder: "Arrastra para reordenar",
   pinSaveFailed: "No se pudo guardar la disposición de la barra lateral. Se deshizo el cambio.",
+  displayAs: "Porcentajes",
+  displayUsed: "Usado",
+  displayRemaining: "Restante",
 };
 
 const fr: Messages = {
@@ -307,6 +325,9 @@ const fr: Messages = {
   moveDown: "Descendre",
   reorder: "Glisser pour réordonner",
   pinSaveFailed: "Impossible d'enregistrer la disposition de la barre latérale. La modification a été annulée.",
+  displayAs: "Pourcentages",
+  displayUsed: "Utilisé",
+  displayRemaining: "Restant",
 };
 
 const ptBR: Messages = {
@@ -347,6 +368,9 @@ const ptBR: Messages = {
   moveDown: "Mover para baixo",
   reorder: "Arraste para reordenar",
   pinSaveFailed: "Não foi possível salvar a disposição da barra lateral. A alteração foi desfeita.",
+  displayAs: "Porcentagens",
+  displayUsed: "Usado",
+  displayRemaining: "Restante",
 };
 
 const ru: Messages = {
@@ -387,6 +411,9 @@ const ru: Messages = {
   moveDown: "Вниз",
   reorder: "Перетащите, чтобы изменить порядок",
   pinSaveFailed: "Не удалось сохранить расположение на боковой панели. Изменение отменено.",
+  displayAs: "Проценты",
+  displayUsed: "Использовано",
+  displayRemaining: "Осталось",
 };
 
 const ar: Messages = {
@@ -427,6 +454,9 @@ const ar: Messages = {
   moveDown: "تحريك لأسفل",
   reorder: "اسحب لإعادة الترتيب",
   pinSaveFailed: "تعذّر حفظ ترتيب الشريط الجانبي. تم التراجع عن التغيير.",
+  displayAs: "النسب المئوية",
+  displayUsed: "المستخدم",
+  displayRemaining: "المتبقي",
 };
 
 export const MESSAGES: Record<Locale, Messages> = {

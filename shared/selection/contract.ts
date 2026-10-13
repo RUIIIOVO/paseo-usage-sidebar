@@ -2,6 +2,7 @@ import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 import type { Messages } from "../i18n/messages";
 import type { ProviderUsage, UsageSnapshot, UsageWindow } from "../usage/contract";
+import { windowDisplayPct, type DisplayMode } from "../usage/format";
 
 /**
  * Which rows the sidebar meter pins. A row is identified by provider and window
@@ -12,6 +13,7 @@ export const SelectionSchema = z.object({
   keys: z.array(z.string()).default([]),
   /** False until the user picks anything; the meter then shows its own default. */
   configured: z.boolean().default(false),
+  displayAs: z.enum(["used", "remaining"]).default("used"),
 });
 
 export type Selection = z.output<typeof SelectionSchema>;
@@ -24,7 +26,10 @@ export const readSelection = defineRpc({
 
 export const writeSelection = defineRpc({
   name: "selection.write",
-  input: z.object({ keys: z.array(z.string()) }),
+  input: z.object({
+    keys: z.array(z.string()),
+    displayAs: z.enum(["used", "remaining"]).optional(),
+  }),
   output: SelectionSchema,
 });
 
@@ -103,7 +108,7 @@ export function pinnedRows(
       providerId: provider.providerId,
       providerName: provider.displayName,
       label: labelFor(provider, window, messages),
-      usedPct: window.usedPct ?? (window.remainingPct != null ? 100 - window.remainingPct : null),
+      usedPct: windowDisplayPct(window, selection.displayAs),
       window,
     });
   }

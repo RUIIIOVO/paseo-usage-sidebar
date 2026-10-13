@@ -229,6 +229,19 @@ export function resolveTone(reported: UsageTone | undefined, usedPct: number | n
   return SEVERITY[reported] >= SEVERITY[derived] ? reported : derived;
 }
 
+export type DisplayMode = "used" | "remaining";
+
+export function windowDisplayPct(window: UsageWindow, displayAs: DisplayMode = "used"): number | null {
+  if (displayAs === "used") {
+    return windowUsedPct(window);
+  }
+  if (window.remainingPct != null) {
+    return window.remainingPct;
+  }
+  const used = windowUsedPct(window);
+  return used != null ? 100 - used : null;
+}
+
 /** A window reports either the consumed or the remaining share; normalize to consumed. */
 export function windowUsedPct(window: UsageWindow): number | null {
   if (window.usedPct != null) {

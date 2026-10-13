@@ -83,7 +83,11 @@ describe("a reorder while one provider is missing", () => {
   }
 
   it("still shows the missing provider's pin once it reports again", () => {
-    const saved: Selection = { keys: ["claude:five_hour", "codex:weekly", "claude:weekly"], configured: true };
+    const saved: Selection = {
+      keys: ["claude:five_hour", "codex:weekly", "claude:weekly"],
+      configured: true,
+      displayAs: "used",
+    };
 
     const degraded = snapshot([provider("claude", ["five_hour", "weekly"]), provider("codex", [])]);
     const onScreen = pinnedRows(degraded, saved, label, messages).map((row) => row.key);
@@ -94,7 +98,7 @@ describe("a reorder while one provider is missing", () => {
 
     const recovered = snapshot([provider("claude", ["five_hour", "weekly"]), provider("codex", ["weekly"])]);
     assert.deepEqual(
-      pinnedRows(recovered, { keys: next, configured: true }, label, messages).map((row) => row.key),
+      pinnedRows(recovered, { keys: next, configured: true, displayAs: "used" }, label, messages).map((row) => row.key),
       next,
     );
   });

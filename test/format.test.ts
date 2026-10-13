@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { messagesFor } from "../shared/i18n/messages";
-import { formatResetLabel, formatWindowReset } from "../shared/usage/format";
+import { formatResetLabel, formatWindowReset, windowDisplayPct } from "../shared/usage/format";
 
 const zh = messagesFor("zh-CN");
 const inMs = (ms: number) => new Date(Date.now() + ms).toISOString();
@@ -18,6 +18,24 @@ describe("formatResetLabel", () => {
 
   it("counts down once a full minute remains", () => {
     assert.equal(formatResetLabel(inMs(5 * 60_000 + 1_000), zh), zh.resets(zh.minutes(5)));
+  });
+});
+
+describe("windowDisplayPct", () => {
+  it("returns used percentage in used mode", () => {
+    const window = { id: "w", label: "W", usedPct: 75, resetsAt: null };
+    assert.equal(windowDisplayPct(window, "used"), 75);
+  });
+
+  it("returns remaining percentage in remaining mode", () => {
+    const window = { id: "w", label: "W", usedPct: 75, resetsAt: null };
+    assert.equal(windowDisplayPct(window, "remaining"), 25);
+  });
+
+  it("prefers explicit remainingPct when provided", () => {
+    const window = { id: "w", label: "W", remainingPct: 30, resetsAt: null };
+    assert.equal(windowDisplayPct(window, "remaining"), 30);
+    assert.equal(windowDisplayPct(window, "used"), 70);
   });
 });
 

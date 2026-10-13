@@ -13,7 +13,7 @@ import { SelectionSchema, type Selection } from "../../shared/selection/contract
  * daemon-owned files, and replaced atomically so a crash mid-write cannot leave
  * a truncated file behind.
  */
-const EMPTY: Selection = { keys: [], configured: false };
+const EMPTY: Selection = { keys: [], configured: false, displayAs: "used" };
 
 function stateFile(): string {
   const base = process.env.XDG_STATE_HOME?.trim() || join(homedir(), ".local", "state");
@@ -29,9 +29,20 @@ export function readSelectionState(): Selection {
   }
 }
 
-export function writeSelectionState({ keys }: { keys: string[] }): Selection {
+export function writeSelectionState({
+  keys,
+  displayAs,
+}: {
+  keys: string[];
+  displayAs?: "used" | "remaining";
+}): Selection {
+  const current = readSelectionState();
   const unique = [...new Set(keys.filter((key) => typeof key === "string" && key.length > 0))];
-  const next: Selection = { keys: unique, configured: true };
+  const next: Selection = {
+    keys: unique,
+    configured: true,
+    displayAs: displayAs ?? current.displayAs ?? "used",
+  };
   const path = stateFile();
   try {
     mkdirSync(join(path, ".."), { recursive: true, mode: 0o700 });
