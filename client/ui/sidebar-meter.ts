@@ -224,65 +224,34 @@ function toGroups(snapshot: UsageSnapshot, selection: Selection, messages: Messa
 }
 
 /**
- * Finds the outer row element in the vertical sidebar list and its parent list container.
+ * Finds the element after which the meter should be inserted so that it renders
+ * vertically below the row.
  *
  * In Paseo 0.8 the anchor with ANCHOR_SELECTOR was the outer row item itself.
- * In Paseo 0.11 the testID was moved onto the inner Pressable button within the row,
- * which is wrapped in a horizontal flex container (flexDirection: "row") and an outer wrapper.
- * Inserting the meter inside that horizontal container causes it to render to the right
- * of the button rather than below the row. This walks up until it finds the vertical
- * column container and the row element within it, and computes the padding needed to
- * align the meter content with the row's text.
+ * In Paseo 0.11 the testID is on the inner Pressable button within the row,
+ * which is wrapped inside a horizontal flex row (`flexDirection: "row"`).
+ * Inserting after the button within that horizontal row places the meter beside
+ * the button rather than below it.
+ *
+ * We step up past any horizontal flex row containers to find the element whose
+ * parent is a vertical column container (such as the row wrapper or the sidebar list),
+ * and insert the meter as that element's next sibling.
  */
-function resolveRowTarget(anchor: Element): {
-  rowItem: Element;
-  parent: Element;
-  paddingLeft: number;
-  paddingRight: number;
-} | null {
-  const anchorHeight = anchor.getBoundingClientRect().height;
-  let current: Element = anchor;
-
-  while (current.parentElement && current.parentElement !== document.body) {
-    const parent = current.parentElement;
-    const parentStyle = getComputedStyle(parent);
-    const isRowDirection = parentStyle.flexDirection === "row" || parentStyle.flexDirection === "row-reverse";
-
-    if (isRowDirection || parent.children.length === 1) {
-      current = parent;
-      continue;
+function findVerticalTarget(anchor: Element): { target: Element; parent: Element } | null {
+  let target = anchor;
+  while (target.parentElement && target.parentElement !== document.body) {
+    const parentStyle = getComputedStyle(target.parentElement);
+    if (parentStyle.flexDirection === "row" || parentStyle.flexDirection === "row-reverse") {
+      target = target.parentElement;
+    } else {
+      break;
     }
-
-    const spansMore = anchorHeight > 0 && parent.getBoundingClientRect().height > anchorHeight * ROW_HEIGHT_SLACK;
-    if (!spansMore && parent.children.length <= 2) {
-      current = parent;
-      continue;
-    }
-
-    break;
   }
-
-  const parent = current.parentElement;
+  const parent = target.parentElement;
   if (!parent) {
     return null;
   }
-
-  const rowRect = current.getBoundingClientRect();
-  const anchorRect = anchor.getBoundingClientRect();
-  const anchorStyle = getComputedStyle(anchor);
-  const parsedPadLeft = Number.parseFloat(anchorStyle.paddingLeft || "0") || 0;
-  const parsedPadRight = Number.parseFloat(anchorStyle.paddingRight || "0") || 0;
-  const offsetLeft = Math.max(0, anchorRect.left - rowRect.left);
-  const offsetRight = Math.max(0, rowRect.right - anchorRect.right);
-  const paddingLeft = offsetLeft + parsedPadLeft || 8;
-  const paddingRight = offsetRight + parsedPadRight || 8;
-
-  return {
-    rowItem: current,
-    parent,
-    paddingLeft,
-    paddingRight,
-  };
+  return { target, parent };
 }
 
 export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
@@ -424,36 +393,38 @@ export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
     if (!anchor) {
       return;
     }
-    const target = resolveRowTarget(anchor);
-    if (!target) {
+    const mount = findVerticalTarget(anchor);
+    if (!mount) {
       return;
     }
-    const { rowItem, parent, paddingLeft, paddingRight } = target;
+    const { target, parent } = mount;
 
     if (node && node.parentElement === parent) {
-      if (node.previousSibling !== rowItem) {
-        parent.insertBefore(node, rowItem.nextSibling);
+      if (node.previousSibling !== target) {
+        parent.insertBefore(node, target.nextSibling);
       }
-      node.style.paddingLeft = `${paddingLeft}px`;
-      node.style.paddingRight = `${paddingRight}px`;
+      if (node.children.length === 0 && groups.length > 0) {
+        paint();
+      }
       return;
     }
     node?.remove();
 
     const created = document.createElement("div");
     created.setAttribute(NODE_MARK, "true");
+    const anchorStyle = getComputedStyle(anchor);
     created.style.cssText = [
       "display:flex",
       "flex-direction:column",
       "box-sizing:border-box",
       "gap:9px",
       "margin:5px 0 9px",
-      `padding-left:${paddingLeft}px`,
-      `padding-right:${paddingRight}px`,
+      `padding-left:${anchorStyle.paddingLeft || "8px"}`,
+      `padding-right:${anchorStyle.paddingRight || "8px"}`,
       "pointer-events:none",
     ].join(";");
 
-    parent.insertBefore(created, rowItem.nextSibling);
+    parent.insertBefore(created, target.nextSibling);
     node = created;
     syncAppearance();
     paint();
