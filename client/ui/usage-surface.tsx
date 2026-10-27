@@ -32,6 +32,7 @@ import { errorMessage, panelFailureView } from "../../shared/usage/errors";
 import { isRtl, messagesFor, type Locale, type Messages } from "../../shared/i18n/messages";
 import { getLocale, subscribeLocale } from "../i18n/locale";
 import { publishSelection } from "../selection/store";
+import { PinButton } from "./pin-button";
 import {
   defaultKeys,
   pinnedRows,
@@ -60,7 +61,8 @@ const SPACE = { 1: 4, 1.5: 6, 2: 8, 3: 12, 4: 16, 6: 24 } as const;
 const FONT = { sm: 12, base: 14 } as const;
 const RADIUS_LG = 8;
 /** Fixed so a drag offset converts to an index without measuring rows. */
-const ORDER_ROW_HEIGHT = 40;
+const ORDER_ROW_HEIGHT = 48;
+const COMPACT_ORDER_ROW_HEIGHT = 56;
 /** A fetch shorter than this never surfaces a spinner; one that does holds it this long. */
 const BUSY_DELAY_MS = 200;
 const BUSY_MINIMUM_MS = 600;
@@ -117,14 +119,14 @@ function useStyles(theme: PluginTheme, compact: boolean, rtl: boolean) {
 
         /**
          * The reorder block. Rows are a fixed height so a drag can map a finger
-         * offset straight onto an index (`round(dy / ORDER_ROW_HEIGHT)`) without
-         * measuring anything.
+         * offset straight onto an index using the desktop or compact row height,
+         * without measuring anything.
          */
         orderRow: {
           flexDirection: row,
           alignItems: "center",
           gap: SPACE[2],
-          height: ORDER_ROW_HEIGHT,
+          height: compact ? COMPACT_ORDER_ROW_HEIGHT : ORDER_ROW_HEIGHT,
           paddingHorizontal: SPACE[3],
           backgroundColor: theme.colors.surface1,
         },
@@ -139,13 +141,11 @@ function useStyles(theme: PluginTheme, compact: boolean, rtl: boolean) {
         orderLabel: { flex: 1, color: theme.colors.foreground, fontSize: FONT.sm, writingDirection, textAlign },
         orderValue: { color: theme.colors.foregroundMuted, fontSize: FONT.sm, writingDirection },
         orderButton: {
-          width: 22,
-          height: 22,
+          width: compact ? 44 : 28,
+          height: compact ? 44 : 28,
           alignItems: "center",
           justifyContent: "center",
           borderRadius: 6,
-          borderWidth: 1,
-          borderColor: theme.colors.border,
         },
         orderButtonDisabled: { opacity: 0.35 },
         orderEmpty: { padding: SPACE[4] },
@@ -197,23 +197,16 @@ function useStyles(theme: PluginTheme, compact: boolean, rtl: boolean) {
         barRowPinned: {
           backgroundColor: theme.colors.surface2,
         },
-        barRowPressed: {
-          opacity: 0.8,
-        },
+        barContentRow: { flexDirection: row, alignItems: "center", gap: SPACE[2] },
+        windowContent: { flex: 1, minWidth: 0, gap: 3 },
         barLabelRow: {
           flexDirection: row,
           justifyContent: "space-between",
           alignItems: "center",
+          flexWrap: "wrap",
           gap: SPACE[2],
         },
         barLabel: { flexShrink: 1, color: theme.colors.foregroundMuted, fontSize: FONT.sm, writingDirection, textAlign },
-        barValueGroup: { flexDirection: row, alignItems: "center", gap: SPACE[2], flexShrink: 0 },
-        pinIconBox: {
-          width: 16,
-          height: 16,
-          alignItems: "center",
-          justifyContent: "center",
-        },
         displayOptionsCard: {
           flexDirection: row,
           alignItems: "center",
@@ -253,18 +246,8 @@ function useStyles(theme: PluginTheme, compact: boolean, rtl: boolean) {
           color: theme.colors.foreground,
           fontWeight: "500",
         },
-        pinButton: {
-          width: 22,
-          height: 22,
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 6,
-          borderWidth: 1,
-          borderColor: theme.colors.border,
-        },
-        pinButtonActive: { backgroundColor: theme.colors.surface2 },
-        iconButtonPressed: { opacity: 0.7 },
-        barValue: { color: theme.colors.foreground, fontSize: FONT.sm, fontWeight: "500", writingDirection },
+        iconButtonPressed: { backgroundColor: theme.colors.surface2 },
+        barValue: { flexShrink: 1, color: theme.colors.foreground, fontSize: FONT.sm, fontWeight: "500", writingDirection, textAlign: rtl ? "left" : "right" },
         barReset: { color: theme.colors.foregroundMuted, fontWeight: "normal" },
         barAtRisk: { color: theme.colors.statusDanger, fontWeight: "normal" },
         track: { height: 4, borderRadius: 2, backgroundColor: theme.colors.surface2, overflow: "hidden", flexDirection: row },
@@ -303,6 +286,9 @@ function WindowBar({
   locale,
   messages,
   pinned,
+  compact,
+  selectionBusy,
+  pinLabel,
   displayAs = "used",
   onTogglePin,
 }: {
@@ -312,6 +298,9 @@ function WindowBar({
   locale: Locale;
   messages: Messages;
   pinned?: boolean;
+  compact: boolean;
+  selectionBusy: boolean;
+  pinLabel: string;
   displayAs?: DisplayMode;
   onTogglePin?: () => void;
 }) {
@@ -329,21 +318,10 @@ function WindowBar({
         <Text style={styles.barLabel} numberOfLines={1}>
           {windowLabel(window, messages)}
         </Text>
-        <View style={styles.barValueGroup}>
-          <Text style={styles.barValue}>
-            {displayPct != null ? formatPct(displayPct, locale) : "—"}
-            {trailing ? <Text style={atRisk ? styles.barAtRisk : styles.barReset}>{` · ${trailing}`}</Text> : null}
-          </Text>
-          {onTogglePin ? (
-            <View style={styles.pinIconBox}>
-              <Icon
-                name="Pin"
-                size={12}
-                color={pinned ? theme.colors.foreground : theme.colors.foregroundMuted}
-              />
-            </View>
-          ) : null}
-        </View>
+        <Text style={styles.barValue}>
+          {displayPct != null ? formatPct(displayPct, locale) : "—"}
+          {trailing ? <Text style={atRisk ? styles.barAtRisk : styles.barReset}>{` · ${trailing}`}</Text> : null}
+        </Text>
       </View>
       <View style={styles.track}>
         <View
@@ -355,19 +333,19 @@ function WindowBar({
 
   if (onTogglePin) {
     return (
-      <Pressable
-        accessibilityRole="checkbox"
-        accessibilityLabel={pinned ? messages.hideFromSidebar : messages.showInSidebar}
-        accessibilityState={{ checked: Boolean(pinned) }}
-        onPress={onTogglePin}
-        style={({ pressed }) => [
-          styles.barRow,
-          pinned ? styles.barRowPinned : null,
-          pressed ? styles.barRowPressed : null,
-        ]}
-      >
-        {content}
-      </Pressable>
+      <View style={[styles.barRow, pinned ? styles.barRowPinned : null]}>
+        <View style={styles.barContentRow}>
+          <View style={styles.windowContent}>{content}</View>
+          <PinButton
+            pinned={Boolean(pinned)}
+            label={`${pinned ? messages.hideFromSidebar : messages.showInSidebar} · ${pinLabel}`}
+            disabled={selectionBusy}
+            compact={compact}
+            theme={theme}
+            onPress={onTogglePin}
+          />
+        </View>
+      </View>
     );
   }
 
@@ -480,7 +458,7 @@ function clampIndex(value: number, length: number): number {
  * plugin host, so a drag fell through to the browser and selected text instead.
  * Pointer events on the underlying node are unambiguous: `preventDefault` on
  * pointerdown kills the text selection, and pointer capture keeps the gesture
- * alive when the cursor outruns the 40px grip.
+ * alive when the cursor outruns the grip.
  *
  * On iOS and Android the ref is a native view with no `addEventListener`, so the
  * effect no-ops and the arrow buttons are the whole story there.
@@ -488,6 +466,7 @@ function clampIndex(value: number, length: number): number {
 function DragHandle({
   rowKey,
   label,
+  disabled,
   style,
   children,
   onBegin,
@@ -496,6 +475,7 @@ function DragHandle({
 }: {
   rowKey: string;
   label: string;
+  disabled: boolean;
   style: StyleProp<ViewStyle>;
   children: React.ReactNode;
   onBegin: (key: string) => void;
@@ -506,7 +486,7 @@ function DragHandle({
 
   useEffect(() => {
     const node = ref.current as unknown as HTMLElement | null;
-    if (!node || typeof node.addEventListener !== "function") {
+    if (disabled || !node || typeof node.addEventListener !== "function") {
       return;
     }
 
@@ -548,7 +528,7 @@ function DragHandle({
       node.removeEventListener("pointerdown", onPointerDown);
       abandon?.();
     };
-  }, [rowKey, onBegin, onDrag, onEnd]);
+  }, [rowKey, disabled, onBegin, onDrag, onEnd]);
 
   return (
     <View ref={ref} accessibilityLabel={label} style={style}>
@@ -562,9 +542,8 @@ function DragHandle({
  * grip and movable by the arrows.
  *
  * It lives here rather than on the meter itself because this surface already
- * owns the selection and its persistence — and because the meter is a raw DOM
- * node with `pointer-events:none` that repaints wholesale every refresh, so a
- * gesture on it would be fighting the host's own sidebar.
+ * owns the selection and its persistence. The sidebar meter opens this surface;
+ * rearrangement stays here so a gesture on the meter cannot accidentally navigate.
  *
  * The arrows are not a lesser fallback: they are the only path that works with a
  * keyboard, a screen reader, or on a phone, where a drag inside a scroll view is
@@ -577,7 +556,9 @@ function OrderBlock({
   locale,
   messages,
   onReorder,
-  onRemove,
+  onUnpin,
+  compact,
+  selectionBusy,
 }: {
   rows: PinnedRow[];
   styles: Styles;
@@ -586,8 +567,11 @@ function OrderBlock({
   messages: Messages;
   onReorder: (keys: string[]) => void;
   /** Unpin straight from this block, without hunting for the window row below. */
-  onRemove: (key: string) => void;
+  onUnpin: (key: string) => void;
+  compact: boolean;
+  selectionBusy: boolean;
 }) {
+  const rowHeight = compact ? COMPACT_ORDER_ROW_HEIGHT : ORDER_ROW_HEIGHT;
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
   const [previewKeys, setPreviewKeys] = useState<string[] | null>(null);
@@ -612,32 +596,34 @@ function OrderBlock({
   });
 
   const move = (from: number, to: number) => {
+    if (selectionBusy) return;
     onReorder(moved(keys, from, clampIndex(to, keys.length)));
   };
 
   const beginDrag = useCallback((key: string) => {
+    if (selectionBusy) return;
     liveKeys.current = [...keysRef.current];
     settled.current = 0;
     setPreviewKeys(liveKeys.current);
     setDragKey(key);
     setDragOffset(0);
-  }, []);
+  }, [selectionBusy]);
 
   const dragTo = useCallback((key: string, dy: number) => {
     const from = liveKeys.current.indexOf(key);
-    const steps = Math.round((dy - settled.current) / ORDER_ROW_HEIGHT);
+    const steps = Math.round((dy - settled.current) / rowHeight);
     if (steps !== 0 && from >= 0) {
       const to = clampIndex(from + steps, liveKeys.current.length);
       if (to !== from) {
         liveKeys.current = moved(liveKeys.current, from, to);
         // The row has moved a slot under the finger, so the same finger position
         // now means zero offset again — otherwise it would jump a full row.
-        settled.current += (to - from) * ORDER_ROW_HEIGHT;
+        settled.current += (to - from) * rowHeight;
         setPreviewKeys(liveKeys.current);
       }
     }
     setDragOffset(dy - settled.current);
-  }, []);
+  }, [rowHeight]);
 
   const endDrag = useCallback((committed: boolean) => {
     const next = liveKeys.current;
@@ -674,6 +660,7 @@ function OrderBlock({
             <DragHandle
               rowKey={row.key}
               label={messages.reorder}
+              disabled={selectionBusy}
               style={styles.orderHandle}
               onBegin={beginDrag}
               onDrag={dragTo}
@@ -688,40 +675,37 @@ function OrderBlock({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={messages.moveUp}
-              disabled={position <= 0}
+              disabled={selectionBusy || position <= 0}
               onPress={() => move(index, index - 1)}
               style={({ pressed }) => [
                 styles.orderButton,
-                position <= 0 ? styles.orderButtonDisabled : null,
+                selectionBusy || position <= 0 ? styles.orderButtonDisabled : null,
                 pressed ? styles.iconButtonPressed : null,
               ]}
             >
-              <Icon name="ChevronUp" size={12} color={theme.colors.foregroundMuted} />
+              <Icon name="ChevronUp" size={16} color={theme.colors.foregroundMuted} />
             </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={messages.moveDown}
-              disabled={position >= ordered.length - 1}
+              disabled={selectionBusy || position >= ordered.length - 1}
               onPress={() => move(index, index + 1)}
               style={({ pressed }) => [
                 styles.orderButton,
-                position >= ordered.length - 1 ? styles.orderButtonDisabled : null,
+                selectionBusy || position >= ordered.length - 1 ? styles.orderButtonDisabled : null,
                 pressed ? styles.iconButtonPressed : null,
               ]}
             >
-              <Icon name="ChevronDown" size={12} color={theme.colors.foregroundMuted} />
+              <Icon name="ChevronDown" size={16} color={theme.colors.foregroundMuted} />
             </Pressable>
-            {/* Same affordance as the window row's pin toggle, on the block that
-                actually lists what is pinned — removing something here no longer
-                means scrolling down to find the row it came from. */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={messages.hideFromSidebar}
-              onPress={() => onRemove(row.key)}
-              style={({ pressed }) => [styles.orderButton, pressed ? styles.iconButtonPressed : null]}
-            >
-              <Icon name="Minus" size={12} color={theme.colors.foregroundMuted} />
-            </Pressable>
+            <PinButton
+              pinned
+              label={`${messages.hideFromSidebar} · ${row.providerName} · ${row.label}`}
+              disabled={selectionBusy}
+              compact={compact}
+              theme={theme}
+              onPress={() => onUnpin(row.key)}
+            />
           </View>
         );
       })}
@@ -739,6 +723,8 @@ function ProviderBlock({
   pinnedKeys,
   displayAs,
   onTogglePin,
+  compact,
+  selectionBusy,
 }: {
   provider: ProviderUsage;
   /** The snapshot is still rendered, but it is not being refreshed any more. */
@@ -750,6 +736,8 @@ function ProviderBlock({
   pinnedKeys: ReadonlySet<string>;
   displayAs: DisplayMode;
   onTogglePin: (key: string) => void;
+  compact: boolean;
+  selectionBusy: boolean;
 }) {
   const status = statusLabel(provider.status, messages);
   /**
@@ -810,6 +798,9 @@ function ProviderBlock({
               locale={locale}
               messages={messages}
               pinned={pinnedKeys.has(rowKey(provider.providerId, window.id))}
+              compact={compact}
+              selectionBusy={selectionBusy}
+              pinLabel={`${provider.displayName} · ${windowLabel(window, messages)}`}
               displayAs={displayAs}
               onTogglePin={() => onTogglePin(rowKey(provider.providerId, window.id))}
             />
@@ -1036,6 +1027,7 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={messages.displayUsed}
+                disabled={selectionQuery.isPending || savePins.isPending}
                 onPress={() => commitDisplayAs("used")}
                 style={[styles.segment, displayAs === "used" ? styles.segmentActive : null]}
               >
@@ -1046,6 +1038,7 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={messages.displayRemaining}
+                disabled={selectionQuery.isPending || savePins.isPending}
                 onPress={() => commitDisplayAs("remaining")}
                 style={[styles.segment, displayAs === "remaining" ? styles.segmentActive : null]}
               >
@@ -1071,7 +1064,9 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
               // The block arranges only the rows this snapshot resolved; the pins
               // it could not see keep their places in the list that is saved.
               onReorder={(visible) => commitOrder(reorderVisible(order, visible))}
-              onRemove={togglePin}
+              compact={layout.compact}
+              selectionBusy={selectionQuery.isPending || savePins.isPending}
+              onUnpin={togglePin}
             />
             {savePins.isError ? <Text style={styles.orderError}>{messages.pinSaveFailed}</Text> : null}
           </View>
@@ -1092,6 +1087,8 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
                   pinnedKeys={pinnedKeys}
                   displayAs={displayAs}
                   onTogglePin={togglePin}
+                  compact={layout.compact}
+                  selectionBusy={selectionQuery.isPending || savePins.isPending}
                 />
               </Fragment>
             ))}

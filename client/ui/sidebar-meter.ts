@@ -254,7 +254,7 @@ function findVerticalTarget(anchor: Element): { target: Element; parent: Element
   return { target, parent };
 }
 
-export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
+export function startSidebarMeter(client: PluginClientContext, surfaceId: string): PluginCleanup {
   if (typeof document === "undefined" || typeof MutationObserver === "undefined") {
     return () => {};
   }
@@ -371,9 +371,6 @@ export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
         }
         if (timing.alternate) {
           item.title = `${row.label} · ${timing.alternate}`;
-          // The meter as a whole is click-through; a row with a tooltip has to opt
-          // back in, because pointer-events:none also suppresses hover.
-          item.style.pointerEvents = "auto";
         }
 
         section.append(item);
@@ -383,6 +380,7 @@ export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
     }
 
     node.title = messages.title;
+    node.setAttribute("aria-label", messages.title);
   }
 
   function ensureMounted(): void {
@@ -410,18 +408,29 @@ export function startSidebarMeter(client: PluginClientContext): PluginCleanup {
     }
     node?.remove();
 
-    const created = document.createElement("div");
+    // One native button covers the label, bar, countdown and space between rows.
+    // Enter/Space activate it too, without redirecting clicks through a host DOM
+    // element that may have unmounted or changed with the sidebar layout.
+    const created = document.createElement("button");
+    created.type = "button";
+    created.addEventListener("click", () => client.openSurface(surfaceId));
     created.setAttribute(NODE_MARK, "true");
     const anchorStyle = getComputedStyle(anchor);
     created.style.cssText = [
       "display:flex",
       "flex-direction:column",
       "box-sizing:border-box",
+      "width:100%",
+      "border:0",
+      "background:none",
+      "font:inherit",
+      "text-align:inherit",
+      "cursor:pointer",
       "gap:9px",
       "margin:5px 0 9px",
       `padding-left:${anchorStyle.paddingLeft || "8px"}`,
       `padding-right:${anchorStyle.paddingRight || "8px"}`,
-      "pointer-events:none",
+      "pointer-events:auto",
     ].join(";");
 
     parent.insertBefore(created, target.nextSibling);

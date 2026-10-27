@@ -64,7 +64,7 @@ export default function contribute(client: PluginClientContext): PluginCleanup {
     removeLabels = registerLabels(client);
   });
 
-  const stopMeter = startSidebarMeter(client);
+  const stopMeter = startSidebarMeter(client, SURFACE_ID);
 
   // The removers are idempotent, so running them here is safe even though Paseo
   // also drops outstanding registrations after this cleanup returns.
