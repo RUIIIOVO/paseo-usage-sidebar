@@ -78,6 +78,8 @@ paseo plugin add RUIIIOVO/paseo-usage-sidebar
 
 ---
 
+在用量面板中可以选择显示或隐藏侧栏标题。侧栏较窄且有固定额度时标题会自动隐藏；点击额度仪表即可重新打开面板。
+
 ## 🔄 更新
 
 更新命令如下：

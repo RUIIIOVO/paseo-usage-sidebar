@@ -6,6 +6,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { pinnedRows, reorderVisible, type Selection } from "../shared/selection/contract";
+import { hideSidebarTitle } from "../shared/selection/title-visibility";
+import { resolveTone, windowUsedPct } from "../shared/usage/format";
 import { messagesFor } from "../shared/i18n/messages";
 import type { ProviderUsage, UsageSnapshot } from "../shared/usage/contract";
 
@@ -86,7 +88,7 @@ describe("a reorder while one provider is missing", () => {
     const saved: Selection = {
       keys: ["claude:five_hour", "codex:weekly", "claude:weekly"],
       configured: true,
-      displayAs: "used",
+      displayAs: "used", showSidebarTitle: true,
     };
 
     const degraded = snapshot([provider("claude", ["five_hour", "weekly"]), provider("codex", [])]);
@@ -98,8 +100,35 @@ describe("a reorder while one provider is missing", () => {
 
     const recovered = snapshot([provider("claude", ["five_hour", "weekly"]), provider("codex", ["weekly"])]);
     assert.deepEqual(
-      pinnedRows(recovered, { keys: next, configured: true, displayAs: "used" }, label, messages).map((row) => row.key),
+      pinnedRows(recovered, { keys: next, configured: true, displayAs: "used", showSidebarTitle: true }, label, messages).map((row) => row.key),
       next,
     );
+  });
+});
+
+
+describe("pinned row display mode", () => {
+  it("keeps warning severity based on consumed quota in either mode", () => {
+    for (const [usedPct, expectedTone] of [[5, "ok"], [80, "warning"], [95, "danger"]] as const) {
+      const window = { id: "weekly", label: "Weekly", usedPct };
+      const provider: ProviderUsage = { providerId: "p", displayName: "P", status: "available", planLabel: null, windows: [window], balances: [], details: [] };
+      const snapshot: UsageSnapshot = { fetchedAt: null, source: "sdk", providers: [provider] };
+      for (const mode of ["used", "remaining"] as const) {
+        const [row] = pinnedRows(snapshot, { keys: ["p:weekly"], configured: true, displayAs: mode, showSidebarTitle: true }, (_p, w) => w.label, messagesFor("en"));
+        assert.equal(row.displayPct, mode === "used" ? usedPct : 100 - usedPct);
+        assert.equal(resolveTone(row.window.tone, windowUsedPct(row.window)), expectedTone);
+      }
+    }
+  });
+});
+
+
+describe("sidebar title visibility", () => {
+  it("hides the title on narrow sidebars or when disabled, with a meter to open settings", () => {
+    assert.equal(hideSidebarTitle(true, 239, true), true);
+    assert.equal(hideSidebarTitle(true, 240, true), false);
+    assert.equal(hideSidebarTitle(false, 400, true), true);
+    assert.equal(hideSidebarTitle(false, 200, false), false);
+    assert.equal(hideSidebarTitle(true, 0, true), false);
   });
 });

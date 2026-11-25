@@ -13,7 +13,7 @@ import { SelectionSchema, type Selection } from "../../shared/selection/contract
  * daemon-owned files, and replaced atomically so a crash mid-write cannot leave
  * a truncated file behind.
  */
-const EMPTY: Selection = { keys: [], configured: false, displayAs: "used" };
+const EMPTY: Selection = { keys: [], configured: false, displayAs: "used", showSidebarTitle: true };
 
 function stateFile(): string {
   const base = process.env.XDG_STATE_HOME?.trim() || join(homedir(), ".local", "state");
@@ -32,9 +32,11 @@ export function readSelectionState(): Selection {
 export function writeSelectionState({
   keys,
   displayAs,
+  showSidebarTitle,
 }: {
   keys: string[];
   displayAs?: "used" | "remaining";
+  showSidebarTitle?: boolean;
 }): Selection {
   const current = readSelectionState();
   const unique = [...new Set(keys.filter((key) => typeof key === "string" && key.length > 0))];
@@ -42,6 +44,7 @@ export function writeSelectionState({
     keys: unique,
     configured: true,
     displayAs: displayAs ?? current.displayAs ?? "used",
+    showSidebarTitle: showSidebarTitle ?? current.showSidebarTitle,
   };
   const path = stateFile();
   try {

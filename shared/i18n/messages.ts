@@ -68,6 +68,9 @@ export type Messages = {
   displayAs: string;
   displayUsed: string;
   displayRemaining: string;
+  sidebarTitleVisibility: string;
+  showTitle: string;
+  hideTitle: string;
 };
 
 const en: Messages = {
@@ -111,6 +114,9 @@ const en: Messages = {
   displayAs: "Percentages",
   displayUsed: "Used",
   displayRemaining: "Remaining",
+  sidebarTitleVisibility: "Sidebar title",
+  showTitle: "Show",
+  hideTitle: "Hide",
 };
 
 const zhCN: Messages = {
@@ -156,6 +162,9 @@ const zhCN: Messages = {
   displayAs: "百分比",
   displayUsed: "已用",
   displayRemaining: "剩余",
+  sidebarTitleVisibility: "侧栏标题",
+  showTitle: "显示",
+  hideTitle: "隐藏",
 };
 
 const ja: Messages = {
@@ -199,6 +208,9 @@ const ja: Messages = {
   displayAs: "パーセンテージ",
   displayUsed: "使用済み",
   displayRemaining: "残り",
+  sidebarTitleVisibility: "サイドバーのタイトル",
+  showTitle: "表示",
+  hideTitle: "非表示",
 };
 
 const ko: Messages = {
@@ -242,6 +254,9 @@ const ko: Messages = {
   displayAs: "백분율",
   displayUsed: "사용됨",
   displayRemaining: "남음",
+  sidebarTitleVisibility: "사이드바 제목",
+  showTitle: "표시",
+  hideTitle: "숨기기",
 };
 
 const es: Messages = {
@@ -285,6 +300,9 @@ const es: Messages = {
   displayAs: "Porcentajes",
   displayUsed: "Usado",
   displayRemaining: "Restante",
+  sidebarTitleVisibility: "Título de la barra lateral",
+  showTitle: "Mostrar",
+  hideTitle: "Ocultar",
 };
 
 const fr: Messages = {
@@ -328,6 +346,9 @@ const fr: Messages = {
   displayAs: "Pourcentages",
   displayUsed: "Utilisé",
   displayRemaining: "Restant",
+  sidebarTitleVisibility: "Titre de la barre latérale",
+  showTitle: "Afficher",
+  hideTitle: "Masquer",
 };
 
 const ptBR: Messages = {
@@ -371,6 +392,9 @@ const ptBR: Messages = {
   displayAs: "Porcentagens",
   displayUsed: "Usado",
   displayRemaining: "Restante",
+  sidebarTitleVisibility: "Título da barra lateral",
+  showTitle: "Mostrar",
+  hideTitle: "Ocultar",
 };
 
 const ru: Messages = {
@@ -414,6 +438,9 @@ const ru: Messages = {
   displayAs: "Проценты",
   displayUsed: "Использовано",
   displayRemaining: "Осталось",
+  sidebarTitleVisibility: "Заголовок боковой панели",
+  showTitle: "Показать",
+  hideTitle: "Скрыть",
 };
 
 const ar: Messages = {
@@ -457,6 +484,9 @@ const ar: Messages = {
   displayAs: "النسب المئوية",
   displayUsed: "المستخدم",
   displayRemaining: "المتبقي",
+  sidebarTitleVisibility: "عنوان الشريط الجانبي",
+  showTitle: "إظهار",
+  hideTitle: "إخفاء",
 };
 
 export const MESSAGES: Record<Locale, Messages> = {

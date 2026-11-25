@@ -671,7 +671,7 @@ function OrderBlock({
             <Text style={styles.orderLabel} numberOfLines={1}>
               {`${row.providerName} · ${row.label}`}
             </Text>
-            <Text style={styles.orderValue}>{row.usedPct != null ? formatPct(row.usedPct, locale) : "—"}</Text>
+            <Text style={styles.orderValue}>{row.displayPct != null ? formatPct(row.displayPct, locale) : "—"}</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={messages.moveUp}
@@ -916,9 +916,11 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
    * mid-drag would yank the list back to the server's copy.
    */
   const [localOrder, setLocalOrder] = useState<string[] | null>(null);
+  const [localShowTitle, setLocalShowTitle] = useState<boolean | null>(null);
   const [localDisplayAs, setLocalDisplayAs] = useState<DisplayMode | null>(null);
   const order = localOrder ?? persistedOrder;
   const displayAs: DisplayMode = localDisplayAs ?? selectionQuery.data?.displayAs ?? "used";
+  const showSidebarTitle = localShowTitle ?? selectionQuery.data?.showSidebarTitle ?? true;
   const pinnedKeys = useMemo(() => new Set(order), [order]);
 
   const pinned: PinnedRow[] = useMemo(() => {
@@ -927,14 +929,14 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
     }
     return pinnedRows(
       query.data,
-      { keys: order, configured: true, displayAs },
+      { keys: order, configured: true, displayAs, showSidebarTitle },
       (_provider, window) => windowLabel(window, messages),
       messages,
     );
-  }, [query.data, order, displayAs, messages]);
+  }, [query.data, order, displayAs, showSidebarTitle, messages]);
 
   const savePins = useMutation({
-    mutationFn: (input: { keys: string[]; displayAs?: DisplayMode }) => persistSelection(input),
+    mutationFn: (input: { keys: string[]; displayAs?: DisplayMode; showSidebarTitle?: boolean }) => persistSelection(input),
     onSuccess: (selection) => {
       queryClient.setQueryData(["usage-sidebar", "selection"], selection);
       publishSelection(selection);
@@ -942,6 +944,7 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
     onError: () => {
       setLocalOrder(null);
       setLocalDisplayAs(null);
+      setLocalShowTitle(null);
     },
   });
 
@@ -957,6 +960,11 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
   const commitDisplayAs = (mode: DisplayMode) => {
     setLocalDisplayAs(mode);
     savePins.mutate({ keys: order, displayAs: mode });
+  };
+
+  const commitShowTitle = (show: boolean) => {
+    setLocalShowTitle(show);
+    savePins.mutate({ keys: order, showSidebarTitle: show });
   };
 
   const togglePin = (key: string) => {
@@ -1046,6 +1054,26 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
                   {messages.displayRemaining}
                 </Text>
               </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        {providers.length > 0 ? (
+          <View style={[styles.card, styles.displayOptionsCard]}>
+            <Text style={styles.displayOptionsLabel}>{messages.sidebarTitleVisibility}</Text>
+            <View style={styles.segmentedControl}>
+              {[true, false].map((show) => (
+                <Pressable key={String(show)} accessibilityRole="button"
+                  accessibilityLabel={show ? messages.showTitle : messages.hideTitle}
+                  accessibilityState={{ selected: showSidebarTitle === show }}
+                  disabled={selectionQuery.isPending || savePins.isPending}
+                  onPress={() => commitShowTitle(show)}
+                  style={[styles.segment, showSidebarTitle === show ? styles.segmentActive : null]}>
+                  <Text style={[styles.segmentLabel, showSidebarTitle === show ? styles.segmentLabelActive : null]}>
+                    {show ? messages.showTitle : messages.hideTitle}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
           </View>
         ) : null}
