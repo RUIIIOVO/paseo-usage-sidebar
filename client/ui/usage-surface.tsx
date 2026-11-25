@@ -7,8 +7,10 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
+  Switch,
   StyleSheet,
   Text,
+  TextInput,
   View,
   type StyleProp,
   type ViewStyle,
@@ -34,6 +36,7 @@ import { getLocale, subscribeLocale } from "../i18n/locale";
 import { publishSelection } from "../selection/store";
 import { PinButton } from "./pin-button";
 import {
+  accountKey,
   defaultKeys,
   pinnedRows,
   readSelection,
@@ -170,7 +173,7 @@ function useStyles(theme: PluginTheme, compact: boolean, rtl: boolean) {
         divider: { height: 1, backgroundColor: theme.colors.border },
 
         provider: { gap: SPACE[4], paddingVertical: SPACE[4], paddingHorizontal: SPACE[4] },
-        providerHeader: { flexDirection: row, alignItems: "center", gap: SPACE[2] },
+        providerHeader: { flexDirection: row, alignItems: "center", gap: SPACE[2], flexWrap: "wrap" },
         providerName: { flexShrink: 1, color: theme.colors.foreground, fontSize: FONT.base, writingDirection, textAlign },
         headerSpacer: { flex: 1 },
         planBadge: {
@@ -725,8 +728,18 @@ function ProviderBlock({
   onTogglePin,
   compact,
   selectionBusy,
+  accountScoped,
+  alias,
+  selected,
+  onSaveAlias,
+  onChangeSelected,
 }: {
   provider: ProviderUsage;
+  accountScoped: boolean;
+  alias: string;
+  selected: boolean;
+  onSaveAlias: (value: string) => Promise<void>;
+  onChangeSelected: (value: boolean) => void;
   /** The snapshot is still rendered, but it is not being refreshed any more. */
   stale: boolean;
   theme: PluginTheme;
@@ -740,6 +753,10 @@ function ProviderBlock({
   selectionBusy: boolean;
 }) {
   const status = statusLabel(provider.status, messages);
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(alias);
+  useEffect(() => setDraftName(alias), [alias]);
+  const zh = locale === "zh-CN";
   /**
    * Provenance, age, and — when polling has stopped — the fact that the age is
    * no longer moving. All three answer "how much do I trust this number", so
@@ -758,8 +775,13 @@ function ProviderBlock({
     <View style={styles.provider}>
       <View style={styles.providerHeader}>
         <Text style={styles.providerName} numberOfLines={1}>
-          {provider.displayName}
+          {alias || provider.displayName}
         </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${zh ? "重命名" : "Rename"}: ${provider.displayName}`}
+          disabled={selectionBusy} onPress={() => { setDraftName(alias); setEditingName(true); }}
+          style={({ pressed }) => [{ paddingVertical: 5, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, borderColor: theme.colors.border }, pressed ? styles.iconButtonPressed : null]}>
+          <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>{zh ? "重命名" : "Rename"}</Text>
+        </Pressable>
         {provider.planLabel ? (
           <View style={styles.planBadge}>
             <Text style={styles.planBadgeLabel} numberOfLines={1}>
@@ -768,6 +790,12 @@ function ProviderBlock({
           </View>
         ) : null}
         <View style={styles.headerSpacer} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>{zh ? "显示" : "Show"}</Text>
+          <Switch accessibilityLabel={`${zh ? "显示订阅" : "Show subscription"}: ${provider.displayName}`}
+            value={selected} onValueChange={onChangeSelected} disabled={selectionBusy}
+            trackColor={{ false: theme.colors.border, true: theme.colors.statusSuccess }} />
+        </View>
         {status ? (
           <View style={styles.statusRow}>
             <View
@@ -780,6 +808,20 @@ function ProviderBlock({
           </View>
         ) : null}
       </View>
+
+      {editingName ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <TextInput accessibilityLabel={`${zh ? "侧栏名称" : "Sidebar name"}: ${provider.displayName}`}
+            value={draftName} onChangeText={setDraftName} placeholder={provider.displayName}
+            placeholderTextColor={theme.colors.foregroundMuted} maxLength={80} autoFocus
+            style={{ flex: 1, minWidth: 0, color: theme.colors.foreground, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 6, padding: 8 }} />
+          <Pressable accessibilityRole="button" disabled={selectionBusy}
+            onPress={() => { void onSaveAlias(draftName.trim()).then(() => setEditingName(false)).catch(() => {}); }}
+            style={styles.retryButton}><Text style={styles.retryLabel}>{zh ? "保存" : "Save"}</Text></Pressable>
+          <Pressable accessibilityRole="button" disabled={selectionBusy} onPress={() => setEditingName(false)}
+            style={styles.retryButton}><Text style={styles.retryLabel}>{zh ? "取消" : "Cancel"}</Text></Pressable>
+        </View>
+      ) : null}
 
       {provider.error ? (
         <Text style={styles.providerError} numberOfLines={3}>
@@ -797,12 +839,12 @@ function ProviderBlock({
               styles={styles}
               locale={locale}
               messages={messages}
-              pinned={pinnedKeys.has(rowKey(provider.providerId, window.id))}
+              pinned={pinnedKeys.has(rowKey(accountScoped ? accountKey(provider) : provider.providerId, window.id))}
               compact={compact}
               selectionBusy={selectionBusy}
               pinLabel={`${provider.displayName} · ${windowLabel(window, messages)}`}
               displayAs={displayAs}
-              onTogglePin={() => onTogglePin(rowKey(provider.providerId, window.id))}
+              onTogglePin={() => onTogglePin(rowKey(accountScoped ? accountKey(provider) : provider.providerId, window.id))}
             />
           ))}
           {provider.balances.map((balance) => (
@@ -920,6 +962,11 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
   const [localDisplayAs, setLocalDisplayAs] = useState<DisplayMode | null>(null);
   const order = localOrder ?? persistedOrder;
   const displayAs: DisplayMode = localDisplayAs ?? selectionQuery.data?.displayAs ?? "used";
+  const aliases = selectionQuery.data?.aliases ?? {};
+  const hiddenAccounts = selectionQuery.data?.hiddenAccounts ?? [];
+  const onlySelected = selectionQuery.data?.onlySelected ?? false;
+  const countBySource = new Map<string, number>();
+  for (const provider of providers) countBySource.set(provider.providerId, (countBySource.get(provider.providerId) ?? 0) + 1);
   const showSidebarTitle = localShowTitle ?? selectionQuery.data?.showSidebarTitle ?? true;
   const pinnedKeys = useMemo(() => new Set(order), [order]);
 
@@ -929,14 +976,14 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
     }
     return pinnedRows(
       query.data,
-      { keys: order, configured: true, displayAs, showSidebarTitle },
+      { keys: order, configured: true, displayAs, showSidebarTitle, aliases },
       (_provider, window) => windowLabel(window, messages),
       messages,
     );
-  }, [query.data, order, displayAs, showSidebarTitle, messages]);
+  }, [query.data, order, displayAs, showSidebarTitle, aliases, messages]);
 
   const savePins = useMutation({
-    mutationFn: (input: { keys: string[]; displayAs?: DisplayMode; showSidebarTitle?: boolean }) => persistSelection(input),
+    mutationFn: (input: { keys: string[]; displayAs?: DisplayMode; showSidebarTitle?: boolean; aliases?: Record<string, string>; hiddenAccounts?: string[]; onlySelected?: boolean }) => persistSelection(input),
     onSuccess: (selection) => {
       queryClient.setQueryData(["usage-sidebar", "selection"], selection);
       publishSelection(selection);
@@ -1101,12 +1148,39 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
         ) : null}
 
         {providers.length > 0 ? (
+          <View style={styles.orderSection}>
+            <View style={[styles.card, styles.displayOptionsCard]}>
+              <Text style={styles.displayOptionsLabel}>{locale === "zh-CN" ? "订阅列表" : "Subscriptions"}</Text>
+              <View style={styles.segmentedControl}>
+                {[false, true].map((selected) => (
+                  <Pressable key={String(selected)} accessibilityRole="button" accessibilityState={{ selected: onlySelected === selected }}
+                    disabled={selectionQuery.isPending || savePins.isPending} onPress={() => savePins.mutate({keys: order, onlySelected: selected})}
+                    style={[styles.segment, onlySelected === selected ? styles.segmentActive : null]}>
+                    <Text style={[styles.segmentLabel, onlySelected === selected ? styles.segmentLabelActive : null]}>{locale === "zh-CN" ? (selected ? "只显示选中" : "显示全部") : (selected ? "Selected only" : "Show all")}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
           <View style={styles.card}>
-            {providers.map((provider, index) => (
-              <Fragment key={provider.providerId}>
+            {providers.filter((provider) => !onlySelected || !hiddenAccounts.includes(accountKey(provider))).map((provider, index) => (
+              <Fragment key={accountKey(provider)}>
                 {index > 0 ? <View style={styles.divider} /> : null}
                 <ProviderBlock
                   provider={provider}
+                  accountScoped={provider.providerId === "antigravity-accounts" || (countBySource.get(provider.providerId) ?? 0) > 1 || pinned.some((row) => row.key.startsWith(`${accountKey(provider)}:`))}
+                  alias={aliases[accountKey(provider)] ?? ((countBySource.get(provider.providerId) ?? 0) === 1 ? aliases[provider.providerId] : "") ?? ""}
+                  selected={!hiddenAccounts.includes(accountKey(provider))}
+                  onChangeSelected={(selected) => {
+                    const key = accountKey(provider);
+                    const next = selected ? hiddenAccounts.filter((item) => item !== key) : [...hiddenAccounts, key];
+                    savePins.mutate({ keys: order, hiddenAccounts: next });
+                  }}
+                  onSaveAlias={async (value) => {
+                    const next = { ...aliases };
+                    if ((countBySource.get(provider.providerId) ?? 0) === 1) delete next[provider.providerId];
+                    if (value) next[accountKey(provider)] = value; else delete next[accountKey(provider)];
+                    await savePins.mutateAsync({ keys: order, aliases: next });
+                  }}
                   stale={failure.showingStale}
                   theme={theme}
                   styles={styles}
@@ -1120,6 +1194,7 @@ export function UsageSurface({ theme, layout }: PluginSurfaceProps) {
                 />
               </Fragment>
             ))}
+          </View>
           </View>
         ) : null}
         </View>

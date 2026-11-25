@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { pinnedRows, reorderVisible, type Selection } from "../shared/selection/contract";
+import { accountKey, pinnedRows, reorderVisible, rowKey, type Selection } from "../shared/selection/contract";
 import { hideSidebarTitle } from "../shared/selection/title-visibility";
 import { resolveTone, windowUsedPct } from "../shared/usage/format";
 import { messagesFor } from "../shared/i18n/messages";
@@ -130,5 +130,32 @@ describe("sidebar title visibility", () => {
     assert.equal(hideSidebarTitle(false, 400, true), true);
     assert.equal(hideSidebarTitle(false, 200, false), false);
     assert.equal(hideSidebarTitle(true, 0, true), false);
+  });
+});
+
+describe("subscription aliases", () => {
+  it("renames only the selected provider while keeping its pin identity", () => {
+    const provider: ProviderUsage = { providerId: "antigravity-cli", displayName: "Antigravity (Default)", status: "available", planLabel: null, windows: [{id:"weekly",label:"Weekly",usedPct:20}], balances: [], details: [] };
+    const snapshot: UsageSnapshot = { fetchedAt: null, source: "sdk", providers: [provider] };
+    const base = { keys: ["antigravity-cli:weekly"], configured: true, displayAs: "remaining" as const, showSidebarTitle: true };
+    const label = (_p: ProviderUsage, w: {label: string}) => w.label;
+    assert.equal(pinnedRows(snapshot, {...base, aliases: {"antigravity-cli":"Antigravity-My"}}, label, messagesFor("en"))[0].providerName, "Antigravity-My");
+    assert.equal(pinnedRows(snapshot, {...base, aliases: {"antigravity-cli":"  "}}, label, messagesFor("en"))[0].providerName, provider.displayName);
+    assert.equal(pinnedRows(snapshot, base, label, messagesFor("en"))[0].key, "antigravity-cli:weekly");
+  });
+});
+
+
+describe("accounts from one source", () => {
+  it("keeps aliases and pins independent when windows have identical IDs", () => {
+    const make = (name: string): ProviderUsage => ({ providerId: "antigravity-accounts", displayName: name, status: "available", planLabel: null, windows: [{ id: "gemini-5h", label: "5h", usedPct: 10 }], balances: [], details: [] });
+    const a = make("Antigravity accounts (Gemini-My)");
+    const b = make("Antigravity accounts (Gemini-Out)");
+    const snapshot: UsageSnapshot = { fetchedAt: null, source: "sdk", providers: [a, b] };
+    const selection: Selection = { keys: [rowKey(accountKey(a), "gemini-5h"), rowKey(accountKey(b), "gemini-5h")], configured: true, displayAs: "remaining", showSidebarTitle: true, aliases: { [accountKey(a)]: "My", [accountKey(b)]: "Out" } };
+    const rows = pinnedRows(snapshot, selection, (_p, w) => w.label, messagesFor("en"));
+    assert.deepEqual(rows.map((row) => row.providerName), ["My", "Out"]);
+    assert.notEqual(rows[0].key, rows[1].key);
+    assert.deepEqual(pinnedRows(snapshot, { ...selection, aliases: { ...selection.aliases, [accountKey(a)]: "Changed" } }, (_p, w) => w.label, messagesFor("en")).map((row) => row.providerName), ["Changed", "Out"]);
   });
 });

@@ -15,6 +15,9 @@ export const SelectionSchema = z.object({
   configured: z.boolean().default(false),
   displayAs: z.enum(["used", "remaining"]).default("used"),
   showSidebarTitle: z.boolean().default(true),
+  aliases: z.record(z.string(), z.string()).optional(),
+  hiddenAccounts: z.array(z.string()).optional(),
+  onlySelected: z.boolean().optional(),
 });
 
 export type Selection = z.output<typeof SelectionSchema>;
@@ -31,9 +34,17 @@ export const writeSelection = defineRpc({
     keys: z.array(z.string()),
     displayAs: z.enum(["used", "remaining"]).optional(),
     showSidebarTitle: z.boolean().optional(),
+    aliases: z.record(z.string(), z.string()).optional(),
+    hiddenAccounts: z.array(z.string()).optional(),
+    onlySelected: z.boolean().optional(),
   }),
   output: SelectionSchema,
 });
+
+/** The legacy usage API exposes source ID and account display name, not the newer report ID. */
+export function accountKey(provider: Pick<ProviderUsage, "providerId" | "displayName">): string {
+  return `${provider.providerId}::account::${encodeURIComponent(provider.displayName)}`;
+}
 
 export function rowKey(providerId: string, windowId: string): string {
   return `${providerId}:${windowId}`;
@@ -90,9 +101,13 @@ export function pinnedRows(
   messages: Messages,
 ): PinnedRow[] {
   const available = new Map<string, { provider: ProviderUsage; window: UsageWindow }>();
+  const counts = new Map<string, number>();
+  for (const p of snapshot.providers) counts.set(p.providerId, (counts.get(p.providerId) ?? 0) + 1);
   for (const provider of snapshot.providers) {
     for (const window of provider.windows) {
+      // Keep legacy pins resolving as before; account-specific pins disambiguate shared window IDs.
       available.set(rowKey(provider.providerId, window.id), { provider, window });
+      available.set(rowKey(accountKey(provider), window.id), { provider, window });
     }
   }
 
@@ -107,8 +122,9 @@ export function pinnedRows(
     const { provider, window } = hit;
     rows.push({
       key,
-      providerId: provider.providerId,
-      providerName: provider.displayName,
+      providerId: accountKey(provider),
+      providerName: selection.aliases?.[accountKey(provider)]?.trim() ||
+        ((counts.get(provider.providerId) ?? 0) === 1 ? selection.aliases?.[provider.providerId]?.trim() : undefined) || provider.displayName,
       label: labelFor(provider, window, messages),
       displayPct: windowDisplayPct(window, selection.displayAs),
       window,

@@ -33,10 +33,16 @@ export function writeSelectionState({
   keys,
   displayAs,
   showSidebarTitle,
+  aliases,
+  hiddenAccounts,
+  onlySelected,
 }: {
   keys: string[];
   displayAs?: "used" | "remaining";
   showSidebarTitle?: boolean;
+  aliases?: Record<string, string>;
+  hiddenAccounts?: string[];
+  onlySelected?: boolean;
 }): Selection {
   const current = readSelectionState();
   const unique = [...new Set(keys.filter((key) => typeof key === "string" && key.length > 0))];
@@ -45,6 +51,9 @@ export function writeSelectionState({
     configured: true,
     displayAs: displayAs ?? current.displayAs ?? "used",
     showSidebarTitle: showSidebarTitle ?? current.showSidebarTitle,
+    aliases: aliases ?? current.aliases,
+    hiddenAccounts: hiddenAccounts ?? current.hiddenAccounts,
+    onlySelected: onlySelected ?? current.onlySelected,
   };
   const path = stateFile();
   try {
