@@ -78,6 +78,10 @@ paseo plugin add RUIIIOVO/paseo-usage-sidebar
 
 ---
 
+The usage panel lets you show or hide the sidebar title. It also hides automatically on narrow sidebars when meters are pinned; click a meter to reopen the panel.
+
+Select **Rename** beside a subscription, enter a custom name, and save. Clear the name and save to restore the original. Use the **Show** switch on each subscription and choose **Show all** or **Selected only** above the list.
+
 ## 🔄 Updating
 
 Update with:

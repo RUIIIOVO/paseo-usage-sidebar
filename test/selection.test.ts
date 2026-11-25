@@ -5,7 +5,9 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { pinnedRows, reorderVisible, type Selection } from "../shared/selection/contract";
+import { accountKey, pinnedRows, reorderVisible, rowKey, type Selection } from "../shared/selection/contract";
+import { hideSidebarTitle } from "../shared/selection/title-visibility";
+import { resolveTone, windowUsedPct } from "../shared/usage/format";
 import { messagesFor } from "../shared/i18n/messages";
 import type { ProviderUsage, UsageSnapshot } from "../shared/usage/contract";
 
@@ -86,7 +88,7 @@ describe("a reorder while one provider is missing", () => {
     const saved: Selection = {
       keys: ["claude:five_hour", "codex:weekly", "claude:weekly"],
       configured: true,
-      displayAs: "used",
+      displayAs: "used", showSidebarTitle: true,
     };
 
     const degraded = snapshot([provider("claude", ["five_hour", "weekly"]), provider("codex", [])]);
@@ -98,8 +100,62 @@ describe("a reorder while one provider is missing", () => {
 
     const recovered = snapshot([provider("claude", ["five_hour", "weekly"]), provider("codex", ["weekly"])]);
     assert.deepEqual(
-      pinnedRows(recovered, { keys: next, configured: true, displayAs: "used" }, label, messages).map((row) => row.key),
+      pinnedRows(recovered, { keys: next, configured: true, displayAs: "used", showSidebarTitle: true }, label, messages).map((row) => row.key),
       next,
     );
+  });
+});
+
+
+describe("pinned row display mode", () => {
+  it("keeps warning severity based on consumed quota in either mode", () => {
+    for (const [usedPct, expectedTone] of [[5, "ok"], [80, "warning"], [95, "danger"]] as const) {
+      const window = { id: "weekly", label: "Weekly", usedPct };
+      const provider: ProviderUsage = { providerId: "p", displayName: "P", status: "available", planLabel: null, windows: [window], balances: [], details: [] };
+      const snapshot: UsageSnapshot = { fetchedAt: null, source: "sdk", providers: [provider] };
+      for (const mode of ["used", "remaining"] as const) {
+        const [row] = pinnedRows(snapshot, { keys: ["p:weekly"], configured: true, displayAs: mode, showSidebarTitle: true }, (_p, w) => w.label, messagesFor("en"));
+        assert.equal(row.displayPct, mode === "used" ? usedPct : 100 - usedPct);
+        assert.equal(resolveTone(row.window.tone, windowUsedPct(row.window)), expectedTone);
+      }
+    }
+  });
+});
+
+
+describe("sidebar title visibility", () => {
+  it("hides the title on narrow sidebars or when disabled, with a meter to open settings", () => {
+    assert.equal(hideSidebarTitle(true, 239, true), true);
+    assert.equal(hideSidebarTitle(true, 240, true), false);
+    assert.equal(hideSidebarTitle(false, 400, true), true);
+    assert.equal(hideSidebarTitle(false, 200, false), false);
+    assert.equal(hideSidebarTitle(true, 0, true), false);
+  });
+});
+
+describe("subscription aliases", () => {
+  it("renames only the selected provider while keeping its pin identity", () => {
+    const provider: ProviderUsage = { providerId: "antigravity-cli", displayName: "Antigravity (Default)", status: "available", planLabel: null, windows: [{id:"weekly",label:"Weekly",usedPct:20}], balances: [], details: [] };
+    const snapshot: UsageSnapshot = { fetchedAt: null, source: "sdk", providers: [provider] };
+    const base = { keys: ["antigravity-cli:weekly"], configured: true, displayAs: "remaining" as const, showSidebarTitle: true };
+    const label = (_p: ProviderUsage, w: {label: string}) => w.label;
+    assert.equal(pinnedRows(snapshot, {...base, aliases: {"antigravity-cli":"Antigravity-My"}}, label, messagesFor("en"))[0].providerName, "Antigravity-My");
+    assert.equal(pinnedRows(snapshot, {...base, aliases: {"antigravity-cli":"  "}}, label, messagesFor("en"))[0].providerName, provider.displayName);
+    assert.equal(pinnedRows(snapshot, base, label, messagesFor("en"))[0].key, "antigravity-cli:weekly");
+  });
+});
+
+
+describe("accounts from one source", () => {
+  it("keeps aliases and pins independent when windows have identical IDs", () => {
+    const make = (name: string): ProviderUsage => ({ providerId: "antigravity-accounts", displayName: name, status: "available", planLabel: null, windows: [{ id: "gemini-5h", label: "5h", usedPct: 10 }], balances: [], details: [] });
+    const a = make("Antigravity accounts (Gemini-My)");
+    const b = make("Antigravity accounts (Gemini-Out)");
+    const snapshot: UsageSnapshot = { fetchedAt: null, source: "sdk", providers: [a, b] };
+    const selection: Selection = { keys: [rowKey(accountKey(a), "gemini-5h"), rowKey(accountKey(b), "gemini-5h")], configured: true, displayAs: "remaining", showSidebarTitle: true, aliases: { [accountKey(a)]: "My", [accountKey(b)]: "Out" } };
+    const rows = pinnedRows(snapshot, selection, (_p, w) => w.label, messagesFor("en"));
+    assert.deepEqual(rows.map((row) => row.providerName), ["My", "Out"]);
+    assert.notEqual(rows[0].key, rows[1].key);
+    assert.deepEqual(pinnedRows(snapshot, { ...selection, aliases: { ...selection.aliases, [accountKey(a)]: "Changed" } }, (_p, w) => w.label, messagesFor("en")).map((row) => row.providerName), ["Changed", "Out"]);
   });
 });

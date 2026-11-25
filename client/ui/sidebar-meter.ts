@@ -3,6 +3,7 @@ import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { messagesFor, type Locale, type Messages } from "../../shared/i18n/messages";
 import { getLocale, subscribeLocale } from "../i18n/locale";
 import { publishSelection, subscribeSelection } from "../selection/store";
+import { hideSidebarTitle } from "../../shared/selection/title-visibility";
 import { pinnedRows, readSelection, type Selection } from "../../shared/selection/contract";
 import {
   clampPct,
@@ -12,6 +13,7 @@ import {
   formatResetSecondary,
   formatRunsOutLabel,
   resolveTone,
+  windowUsedPct,
 } from "../../shared/usage/format";
 import { STATUS_DARK, STATUS_LIGHT, type Palette } from "../../shared/usage/palette";
 import { isMeterStale } from "../../shared/usage/errors";
@@ -174,8 +176,8 @@ function readAppearance(): Appearance | null {
   };
 }
 
-type MeterRow = { label: string; usedPct: number | null; tone: UsageTone; window: UsageWindow };
-type MeterGroup = { provider: string; rows: MeterRow[] };
+type MeterRow = { label: string; displayPct: number | null; tone: UsageTone; window: UsageWindow };
+type MeterGroup = { providerId: string; provider: string; rows: MeterRow[] };
 
 type RowTiming = { text: string | null; atRisk: boolean; alternate: string | null };
 
@@ -209,15 +211,15 @@ function toGroups(snapshot: UsageSnapshot, selection: Selection, messages: Messa
   for (const row of rows) {
     const entry: MeterRow = {
       label: row.label,
-      usedPct: row.usedPct,
-      tone: resolveTone(row.window.tone, row.usedPct),
+      displayPct: row.displayPct,
+      tone: resolveTone(row.window.tone, windowUsedPct(row.window)),
       window: row.window,
     };
     const last = groups[groups.length - 1];
-    if (last && last.provider === row.providerName) {
+    if (last && last.providerId === row.providerId) {
       last.rows.push(entry);
     } else {
-      groups.push({ provider: row.providerName, rows: [entry] });
+      groups.push({ providerId: row.providerId, provider: row.providerName, rows: [entry] });
     }
   }
   return groups;
@@ -267,12 +269,31 @@ export function startSidebarMeter(client: PluginClientContext, surfaceId: string
   let messages: Messages = messagesFor(locale);
   let node: HTMLElement | null = null;
   let snapshot: UsageSnapshot | null = null;
-  let selection: Selection = { keys: [], configured: false, displayAs: "used" };
+  let selection: Selection = { keys: [], configured: false, displayAs: "used", showSidebarTitle: true };
   let groups: MeterGroup[] = [];
   let stopped = false;
   let appearance: Appearance | null = null;
   /** Drives `isMeterStale`; reset by any poll that lands. */
   let consecutiveFailures = 0;
+  let titleTarget: HTMLElement | null = null;
+  let titleParent: Element | null = null;
+  let originalDisplay = "";
+  const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => syncTitle());
+
+  function restoreTitle(): void {
+    if (titleTarget) titleTarget.style.display = originalDisplay;
+    titleTarget = null;
+    titleParent = null;
+    resizeObserver?.disconnect();
+  }
+
+  function syncTitle(): void {
+    if (!titleTarget || !titleParent) return;
+    const width = titleParent.getBoundingClientRect().width;
+    const hidden = hideSidebarTitle(selection.showSidebarTitle, width, groups.length > 0);
+    const display = hidden ? "none" : originalDisplay;
+    if (titleTarget.style.display !== display) titleTarget.style.display = display;
+  }
 
   /** Repaints only when the measured colours actually changed. */
   function syncAppearance(): boolean {
@@ -343,7 +364,7 @@ export function startSidebarMeter(client: PluginClientContext, surfaceId: string
         label.style.cssText = `color:${labelColor};font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 
         const value = document.createElement("span");
-        value.textContent = row.usedPct != null ? formatPct(row.usedPct, locale) : "\u2014";
+        value.textContent = row.displayPct != null ? formatPct(row.displayPct, locale) : "\u2014";
         value.style.cssText = `color:${labelColor};font-size:11px;font-weight:500;flex-shrink:0;`;
 
         head.append(label, value);
@@ -352,7 +373,7 @@ export function startSidebarMeter(client: PluginClientContext, surfaceId: string
         track.style.cssText = `height:3px;border-radius:2px;background:${trackColor};overflow:hidden;`;
 
         const fill = document.createElement("div");
-        fill.style.cssText = `height:3px;border-radius:2px;width:${clampPct(row.usedPct ?? 0)}%;background:${palette[row.tone]};`;
+        fill.style.cssText = `height:3px;border-radius:2px;width:${clampPct(row.displayPct ?? 0)}%;background:${palette[row.tone]};`;
 
         track.append(fill);
         item.append(head, track);
@@ -396,6 +417,14 @@ export function startSidebarMeter(client: PluginClientContext, surfaceId: string
       return;
     }
     const { target, parent } = mount;
+    if (target instanceof HTMLElement && (target !== titleTarget || parent !== titleParent)) {
+      restoreTitle();
+      titleTarget = target;
+      titleParent = parent;
+      originalDisplay = target.style.display;
+      resizeObserver?.observe(parent);
+    }
+    syncTitle();
 
     if (node && node.parentElement === parent) {
       if (node.previousSibling !== target) {
@@ -511,6 +540,7 @@ export function startSidebarMeter(client: PluginClientContext, surfaceId: string
     unsubscribeLocale();
     media?.removeEventListener("change", onSchemeChange);
     observer.disconnect();
+    restoreTitle();
     node?.remove();
     node = null;
   };
